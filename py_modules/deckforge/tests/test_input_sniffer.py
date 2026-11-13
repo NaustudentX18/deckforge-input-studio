@@ -62,7 +62,7 @@ class TestDeviceDiscoveryMock:
         dev0.phys = "usb-0000:00:14.0-1/input0"
         dev0.uniq = ""
         dev0.capabilities.return_value = {
-            (1, "EV_KEY"): ["BTN_SOUTH", "BTN_EAST", "BTN_NORTH", "BTN_WEST"],
+            ("EV_KEY", 1): ["BTN_SOUTH", "BTN_EAST", "BTN_NORTH", "BTN_WEST"],
             (3, "EV_ABS"): [(0, MagicMock())],
         }
 
@@ -77,7 +77,7 @@ class TestDeviceDiscoveryMock:
         dev1.phys = ""
         dev1.uniq = ""
         dev1.capabilities.return_value = {
-            (1, "EV_KEY"): ["KEY_A", "KEY_B"],
+            ("EV_KEY", 1): ["KEY_A", "KEY_B"],
         }
 
         mock_input_device_cls.side_effect = [dev0, dev1]

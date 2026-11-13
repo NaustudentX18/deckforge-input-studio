@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useViewport } from '../hooks/useResponsive';
 import {
   OutputTargetType,
   ActivatorType,
@@ -23,6 +24,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
   onApply,
   onCancel,
 }) => {
+  const { isCompact } = useViewport();
   const [targetType, setTargetType] = useState<OutputTargetType>(initialBinding?.output.type || 'gamepad');
   const [selectedCode, setSelectedCode] = useState<string>(initialBinding?.output.code || 'BTN_A');
   const [activator, setActivator] = useState<ActivatorType>(initialBinding?.activator || 'RegularPress');
@@ -88,14 +90,14 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
 
   return (
     <div style={{
-      backgroundColor: '#1a1a2e',
-      border: '1px solid #33334d',
-      borderRadius: '8px',
-      padding: '20px',
+      backgroundColor: isCompact ? 'transparent' : '#1a1a2e',
+      border: isCompact ? 'none' : '1px solid #33334d',
+      borderRadius: isCompact ? 0 : '8px',
+      padding: isCompact ? '12px' : '20px',
       color: '#eee',
       fontFamily: 'Inter, system-ui, sans-serif',
-      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4)',
-      maxWidth: '680px',
+      boxShadow: isCompact ? 'none' : '0 8px 30px rgba(0, 0, 0, 0.4)',
+      maxWidth: isCompact ? '100%' : '680px',
       width: '100%'
     }}>
       {/* Header */}

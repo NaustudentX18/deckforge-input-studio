@@ -95,17 +95,18 @@ class TestCRKDProfiler:
         profile = CRKDGuitarProfile()
         tpl = generate_crkd_template(profile, target_game="Clone Hero")
         assert "Clone Hero" in tpl.title
-        assert len(tpl.group_source_bindings) > 0
-        outputs = [b["output"] for b in tpl.group_source_bindings]
-        assert "key_press A" in outputs
-        assert "key_press SPACE" in outputs
+        bindings = tpl.bindings()
+        assert bindings
+        outputs = [b["output"]["code"] for b in bindings]
+        assert "A" in outputs
+        assert "SPACE" in outputs
 
     def test_generate_yarg_template(self):
         profile = CRKDGuitarProfile()
         tpl = generate_crkd_template(profile, target_game="YARG")
         assert "YARG" in tpl.title
-        outputs = [b["output"] for b in tpl.group_source_bindings]
-        assert "xinput_button A" in outputs
+        outputs = [b["output"]["code"] for b in tpl.bindings()]
+        assert "A" in outputs
 
     def test_generate_rpcs3_template(self):
         profile = CRKDGuitarProfile()
@@ -151,5 +152,5 @@ class TestCRKDProfiler:
         profile = auto_detect_crkd_les_paul()
         tpl = generate_crkd_template(profile, target_game="Clone Hero")
         assert "Les Paul" in tpl.title
-        names = [b["name"] for b in tpl.group_source_bindings]
+        names = [b["label"] for b in tpl.bindings()]
         assert "Pickup / Star Power Switch" in names

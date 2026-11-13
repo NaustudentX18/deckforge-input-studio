@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { fitSvgStyle } from '../../utils/svgFit';
 
 interface RiffstickGuitarProps {
   activeInputs: Map<string, number>;
@@ -38,7 +39,7 @@ export const RiffstickGuitar: React.FC<RiffstickGuitarProps> = ({
   const tiltValue = activeInputs.get('ABS_Y') ?? activeInputs.get('TILT') ?? 0;
 
   const svgStyle = useMemo(
-    () => ({ width: 420 * scale, height: 720 * scale }),
+    () => fitSvgStyle(420, 720, scale),
     [scale],
   );
 

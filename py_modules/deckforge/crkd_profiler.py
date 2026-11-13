@@ -22,8 +22,17 @@ from .vdf_manager import VDFTemplate
 
 logger = logging.getLogger(__name__)
 
-# Known CRKD and guitar controller hardware IDs
+# Known CRKD and guitar controller hardware IDs.
+#
+# Measured on Forest's CRKD Les Paul Pro (Steam Deck, 2026-11-13): the unit
+# enumerates as 20bc:5500 with the name "CRKD Gamepad". It does NOT use the
+# 0x2E95 ids documented elsewhere, and it does not impersonate a 360 pad on
+# this firmware. Detection therefore has to accept the measured id *and* fall
+# back to the name string, or the guitar is never found.
 CRKD_VENDOR_ID = 0x2E95
+CRKD_MEASURED_IDS: set[tuple[int, int]] = {
+    (0x20BC, 0x5500),   # CRKD Gamepad (Les Paul Pro, measured 2026-11-13)
+}
 CRKD_KNOWN_PIDS = {
     0x0880,  # CRKD NEO S Controller / Guitar Mode
     0x0881,  # CRKD Nitro Deck+
@@ -201,6 +210,8 @@ def is_crkd_or_guitar_device(dev: DeviceInfo) -> bool:
     """Check if a device matches CRKD vendor or guitar patterns."""
     if dev.vendor_id == CRKD_VENDOR_ID:
         return True
+    if (dev.vendor_id, dev.product_id) in CRKD_MEASURED_IDS:
+        return True
     if (dev.vendor_id, dev.product_id) in GUITAR_VENDOR_PIDS:
         return True
     name_lower = dev.name.lower()
@@ -208,11 +219,15 @@ def is_crkd_or_guitar_device(dev: DeviceInfo) -> bool:
 
 
 def auto_detect_crkd_les_paul() -> CRKDGuitarProfile:
-    """Return a dedicated profile configured for the CRKD Les Paul Pro Model."""
+    """Return a profile configured for the CRKD Les Paul Pro Model.
+
+    The detected device keeps its own vendor/product ids: a profile that reports
+    ids the hardware does not have is worse than useless for support, and the
+    blueprint choice does not depend on them.
+    """
     profile = auto_detect_crkd()
     profile.device_name = "CRKD Les Paul Pro Model"
     profile.blueprint_id = "crkd_les_paul"
-    profile.product_id = 0x0883
     return profile
 
 
@@ -240,6 +255,12 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
     profile.vendor_id = matched_dev.vendor_id
     profile.product_id = matched_dev.product_id
 
+    # True when this is the physically measured CRKD unit, whose control layout
+    # differs from the generic guitar assumptions below.
+    matched_measured_crkd = (
+        (matched_dev.vendor_id, matched_dev.product_id) in CRKD_MEASURED_IDS
+    )
+
     # Inspect capabilities to refine button and axis mappings
     caps = matched_dev.capabilities
     key_caps = set(caps.get("EV_KEY", []) + caps.get("1", []))
@@ -259,31 +280,49 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
         profile.fret_blue = "BTN_Y"
         profile.fret_orange = "BTN_TL"
 
-    # Strum assignment
-    if "BTN_DPAD_UP" in key_caps and "BTN_DPAD_DOWN" in key_caps:
+    # Strum assignment.  The measured Les Paul Pro reports the strum bar as
+    # ABS_HAT0Y +/-1 with no dpad buttons at all, so the hat must be checked
+    # first for that hardware.
+    if matched_measured_crkd and "ABS_HAT0Y" in abs_caps:
+        profile.strum_up = "ABS_HAT0Y_NEG"
+        profile.strum_down = "ABS_HAT0Y_POS"
+    elif "BTN_DPAD_UP" in key_caps and "BTN_DPAD_DOWN" in key_caps:
         profile.strum_up = "BTN_DPAD_UP"
         profile.strum_down = "BTN_DPAD_DOWN"
     elif "ABS_HAT0Y" in abs_caps:
         profile.strum_up = "ABS_HAT0Y_NEG"
         profile.strum_down = "ABS_HAT0Y_POS"
 
-    # Whammy axis detection: typically ABS_RZ or ABS_Z
-    if "ABS_RZ" in abs_caps:
+    # Whammy axis detection.  On the measured CRKD Les Paul Pro the whammy is
+    # ABS_Z (not ABS_RZ, which is what a generic 360 pad would use), so the
+    # measured axis is preferred when it is actually present.
+    if matched_measured_crkd:
+        if "ABS_Z" in abs_caps:
+            profile.whammy_axis = "ABS_Z"
+        elif "ABS_RZ" in abs_caps:
+            profile.whammy_axis = "ABS_RZ"
+    elif "ABS_RZ" in abs_caps:
         profile.whammy_axis = "ABS_RZ"
     elif "ABS_Z" in abs_caps:
         profile.whammy_axis = "ABS_Z"
     elif "ABS_RX" in abs_caps:
         profile.whammy_axis = "ABS_RX"
 
-    # Tilt axis detection: typically ABS_Y or ABS_RY
-    if "ABS_RY" in abs_caps:
+    # Tilt on the measured unit is a DIGITAL edge on ABS_HAT0X (-1 only), not an
+    # analog axis, and it shares hat 0 with the strum axis.
+    if matched_measured_crkd and "ABS_HAT0X" in abs_caps:
+        profile.tilt_axis = "ABS_HAT0X"
+    elif "ABS_RY" in abs_caps:
         profile.tilt_axis = "ABS_RY"
     elif "ABS_Y" in abs_caps:
         profile.tilt_axis = "ABS_Y"
 
     # Match Les Paul Pro Model or specific guitar variant
     name_lower = matched_dev.name.lower()
-    if "les paul" in name_lower or "lespaul" in name_lower or "lp pro" in name_lower or matched_dev.product_id in {0x0883, 0x0884, 0x0150, 0x0151}:
+    if matched_measured_crkd:
+        profile.blueprint_id = "crkd_les_paul"
+        profile.device_name = "CRKD Les Paul Pro Model"
+    elif "les paul" in name_lower or "lespaul" in name_lower or "lp pro" in name_lower or matched_dev.product_id in {0x0883, 0x0884, 0x0150, 0x0151}:
         profile.blueprint_id = "crkd_les_paul"
         profile.device_name = matched_dev.name if ("les paul" in name_lower or "crkd" in name_lower) else "CRKD Les Paul Pro Model"
     elif "neo s" in name_lower or matched_dev.product_id == 0x0882:
@@ -324,6 +363,13 @@ def generate_crkd_template(
         return _build_clone_hero_template(profile)
 
 
+def _legacy_to_binding(binding: dict[str, Any]) -> dict[str, Any]:
+    """Convert a profiler ``{"input","output","mode"}`` dict to a studio binding."""
+    from .vdf_manager import _normalise_legacy_binding
+
+    return _normalise_legacy_binding(binding)
+
+
 def _build_clone_hero_template(profile: CRKDGuitarProfile) -> VDFTemplate:
     """Clone Hero mapping: direct keyboard keys or standard XInput."""
     is_lp = profile.blueprint_id == "crkd_les_paul" or "les paul" in profile.device_name.lower()
@@ -357,20 +403,18 @@ def _build_clone_hero_template(profile: CRKDGuitarProfile) -> VDFTemplate:
             "mode": "RegularPress",
         })
 
-    action_sets = [{
-        "name": "InGame",
-        "title": "Clone Hero In-Game",
-        "bindings": bindings,
-    }]
-
     return VDFTemplate(
         version=3,
         title=title,
         description=description,
         creator="DeckForge CRKD Profiler",
         controller_type="neptune",
-        group_source_bindings=bindings,
-        action_sets=action_sets,
+        action_sets=[{
+            "id": "default_set",
+            "name": "InGame",
+            "layers": [],
+            "bindings": [_legacy_to_binding(b) for b in bindings],
+        }],
     )
 
 
@@ -401,8 +445,12 @@ def _build_yarg_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         description=description,
         creator="DeckForge CRKD Profiler",
         controller_type="neptune",
-        group_source_bindings=bindings,
-        action_sets=[{"name": "YARG_Default", "bindings": bindings}],
+        action_sets=[{
+            "id": "default_set",
+            "name": "Default",
+            "layers": [],
+            "bindings": [_legacy_to_binding(b) for b in bindings],
+        }],
     )
 
 
@@ -433,8 +481,12 @@ def _build_rpcs3_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         description=description,
         creator="DeckForge CRKD Profiler",
         controller_type="neptune",
-        group_source_bindings=bindings,
-        action_sets=[{"name": "RPCS3_Guitar", "bindings": bindings}],
+        action_sets=[{
+            "id": "default_set",
+            "name": "Default",
+            "layers": [],
+            "bindings": [_legacy_to_binding(b) for b in bindings],
+        }],
     )
 
 
@@ -465,6 +517,10 @@ def _build_pcsx2_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         description=description,
         creator="DeckForge CRKD Profiler",
         controller_type="neptune",
-        group_source_bindings=bindings,
-        action_sets=[{"name": "PCSX2_GH3", "bindings": bindings}],
+        action_sets=[{
+            "id": "default_set",
+            "name": "Default",
+            "layers": [],
+            "bindings": [_legacy_to_binding(b) for b in bindings],
+        }],
     )

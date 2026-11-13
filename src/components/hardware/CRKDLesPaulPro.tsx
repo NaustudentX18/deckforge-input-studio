@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { fitSvgStyle } from '../../utils/svgFit';
 
 export interface CRKDLesPaulProProps {
   activeInputs: Map<string, number>;
@@ -53,7 +54,7 @@ export const CRKDLesPaulPro: React.FC<CRKDLesPaulProProps> = ({
   const pickupToggleActive = isActive('TOGGLE_PICKUP') || isActive('STAR_POWER') || isActive('BTN_MODE');
 
   const svgStyle = useMemo(
-    () => ({ width: 420 * scale, height: 740 * scale }),
+    () => fitSvgStyle(420, 740, scale),
     [scale],
   );
 

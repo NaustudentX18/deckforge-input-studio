@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { fitSvgStyle } from '../../utils/svgFit';
 
 interface DrumKitProps {
   activeInputs: Map<string, number>;
@@ -64,7 +65,7 @@ const DrumKit: React.FC<DrumKitProps> = ({
   const isSelected = (code: string) => selectedInput === code;
 
   const svgStyle = useMemo(
-    () => ({ width: 600 * scale, height: 500 * scale }),
+    () => fitSvgStyle(600, 500, scale),
     [scale],
   );
 

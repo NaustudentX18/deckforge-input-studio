@@ -1,8 +1,12 @@
 {
   "name": "DeckForge Input Studio",
   "author": "NaustudentX18",
-  "publish": true,
-  "flags": ["root"],
+  "publish": {
+    "tags": ["input", "controller", "steam-input", "mapping", "hardware"],
+    "description": "Visual controller mapper and Steam Input VDF template generator for the Steam Deck: device discovery, live input capture, calibration, presets, and VDF export/sync.",
+    "image": "https://raw.githubusercontent.com/NaustudentX18/deckforge-input-studio/main/assets/plugin_icon.png"
+  },
+  "flags": [],
   "api_version": 1,
-  "image": "https://github.com/NaustudentX18/deckforge-input-studio/raw/main/assets/plugin_icon.png"
+  "image": "https://raw.githubusercontent.com/NaustudentX18/deckforge-input-studio/main/assets/plugin_icon.png"
 }

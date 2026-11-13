@@ -2,13 +2,13 @@
 # ─────────────────────────────────────────────────────────────────────
 PLUGIN_NAME   := DeckForge Input Studio
 DECK_USER     := deck
-DECK_HOST     := steamdeck
+DECK_HOST     ?= 192.168.4.223
 DECK_DEST     := /home/$(DECK_USER)/homebrew/plugins/$(PLUGIN_NAME)
 PY_MODULES    := py_modules/deckforge
-LIB_DIR       := py_modules/lib
+LIB_DIR       ?= py_modules/lib
 ZIP_NAME      := dist/deckforge-input-studio.zip
 
-# Auto-detect Decky Loader python runtime or fallback
+# Auto-detect Decky Loader python runtime (only used for optional local vendoring)
 DECKY_PYTHON  ?= $(shell \
 	if [ -x /home/deck/homebrew/services/PluginLoader ]; then \
 		echo "/home/deck/homebrew/services/PluginLoader"; \
@@ -22,19 +22,27 @@ DECKY_PYTHON  ?= $(shell \
 
 .PHONY: install vendor build package zip deploy clean test dev
 
-## install — install all frontend and backend dependencies
+## install — install all frontend and backend dependencies (dev machines only)
 install:
 	pnpm install || npm install
 	pip install --user -e ".[dev]" || pip install -e ".[dev]"
 
-## vendor — vendor pure-Python & ABI-matched dependencies into py_modules/lib
+## vendor — rebuild py_modules/lib for the Decky frozen interpreter
+##          (measured on current SteamOS: CPython 3.14, x86_64).
+##          Decky's frozen Python cannot install packages at runtime, so this is
+##          a packaging-time step and the result is shipped inside the plugin.
 vendor:
-	@echo "Vendoring Python dependencies for Decky runtime: $(DECKY_PYTHON) …"
-	mkdir -p $(LIB_DIR)
-	$(DECKY_PYTHON) -m pip install --target $(LIB_DIR) --upgrade \
-		fastapi uvicorn websockets pyudev evdev mido 2>/dev/null || \
-	pip install --target $(LIB_DIR) --upgrade \
-		fastapi uvicorn websockets pyudev evdev mido
+	@echo "Vendoring Python dependencies into $(LIB_DIR) …"
+	rm -rf $(LIB_DIR) && mkdir -p $(LIB_DIR)
+	uv pip install --target $(LIB_DIR) --link-mode copy \
+		--python-platform x86_64-manylinux2014 --python-version 3.14 --only-binary :all: \
+		fastapi "uvicorn[standard]" websockets pyudev mido aiofiles python-multipart
+	# evdev ships sdist-only; build it for the same interpreter tag.
+	uv pip install --target $(LIB_DIR) --link-mode copy \
+		--python-version 3.14 evdev
+	rm -rf $(LIB_DIR)/bin
+	find $(LIB_DIR) -type d -name '__pycache__' -prune -exec rm -rf {} +
+	@echo "✅ Vendored: $$(ls $(LIB_DIR) | wc -l) entries, $$(du -sh $(LIB_DIR) | cut -f1)"
 
 ## build — compile the frontend bundle & standalone web studio
 build:
@@ -46,24 +54,26 @@ package: build vendor
 ## zip — build a clean, store-ready Decky Developer Mode zip
 zip: build
 	@echo "Creating store-ready Decky Developer Mode zip: $(ZIP_NAME) …"
+	@test -f dist/index.js || { echo "ERROR: dist/index.js missing (frontend build failed)."; exit 1; }
+	@test -f static/dist/web-entry.js || { echo "ERROR: static/dist/web-entry.js missing (web build failed)."; exit 1; }
+	@test -d $(LIB_DIR) || { echo "ERROR: $(LIB_DIR) missing — the vendored dependencies (fastapi, uvicorn, …) MUST be committed; Decky's frozen Python cannot see site-packages. Run 'make vendor' on an aarch64 host or copy the prebuilt $(LIB_DIR)."; exit 1; }
 	mkdir -p dist
 	rm -f $(ZIP_NAME)
 	# Build temporary staging area
 	rm -rf .tmp_pkg && mkdir -p .tmp_pkg
-	cp plugin.json main.py .tmp_pkg/
+	cp plugin.json package.json main.py .tmp_pkg/
 	cp -r dist .tmp_pkg/
 	cp -r static .tmp_pkg/
 	cp -r defaults .tmp_pkg/
 	cp -r assets .tmp_pkg/
-	cp -r py_modules .tmp_pkg/
+	mkdir -p .tmp_pkg/py_modules
+	cp -r $(PY_MODULES) .tmp_pkg/py_modules/
+	cp -r $(LIB_DIR) .tmp_pkg/py_modules/
 	# Clean unwanted files from staging
-	find .tmp_pkg -type d -name '__pycache__' -exec rm -rf {} +
-	find .tmp_pkg -type d -name '.pytest_cache' -exec rm -rf {} +
-	find .tmp_pkg -type d -name 'tests' -exec rm -rf {} +
-	find .tmp_pkg -type f -name '*.pyc' -delete
-	find .tmp_pkg -type f -name '*.map' -delete
+	find .tmp_pkg -type d \( -name '__pycache__' -o -name '.pytest_cache' -o -name 'tests' -o -name 'node_modules' -o -name '.venv' -o -name '*.egg-info' \) -prune -exec rm -rf {} +
+	find .tmp_pkg -type f \( -name '*.pyc' -o -name '*.map' -o -name '*.pyo' \) -delete
 	# Create zip containing plugin files at root
-	(cd .tmp_pkg && zip -r ../$(ZIP_NAME) .)
+	(cd .tmp_pkg && zip -rq ../$(ZIP_NAME) .)
 	rm -rf .tmp_pkg
 	@echo "✅ Store-ready zip built: $(ZIP_NAME) ($$(du -h $(ZIP_NAME) | cut -f1))"
 

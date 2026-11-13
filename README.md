@@ -7,7 +7,7 @@
 
 [![SteamOS Ready](https://img.shields.io/badge/SteamOS-3.0%2B%20Gaming%20Mode-blue?logo=steam&logoColor=white)](https://store.steampowered.com/steamos)
 [![Decky Loader](https://img.shields.io/badge/Decky%20Loader-Plugin-blueviolet?logo=valve&logoColor=white)](https://decky.xyz)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.14%20(cp314)-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/Tests-77%2F77%20Passing-brightgreen?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![License](https://img.shields.io/badge/License-GPL--2.0--or--later-orange.svg)](LICENSE)
@@ -25,6 +25,7 @@
 ### 1. Dual-Mode Deployment
 * **Decky Loader Plugin (`deckforge-input-studio`)**: Designed for native 1280×800 touch and gamepad navigation inside Steam Gaming Mode. Features a Quick Access Menu (QAM) sidebar panel for quick profile switching, live monitoring, and active template injection, plus a full-screen studio route registered at `/deckforge`.
 * **Standalone Web Studio (`0.0.0.0:8765`)**: Built-in FastAPI + WebSocket server accessible wirelessly over **Tailscale** (`http://<steamdeck-ip>:8765/`). Map complex multi-layer configurations on a tablet or second monitor while simultaneously testing live input on the Deck.
+* **Installable PWA for phones and tablets**: served over HTTPS (e.g. `tailscale serve`), the studio installs to an Android/iOS home screen and runs offline with a cached app shell. The phone layout swaps the sidebar for a four-item bottom bar plus a "More" sheet, turns the binding editor into a bottom sheet, respects safe-area insets, and keeps every touch target at least 44px.
 
 ### 2. 8 Interactive Hardware Blueprints
 Visual vector chassis where physical inputs illuminate in real time and clicking any element opens its binding inspector:
@@ -122,6 +123,14 @@ Visual vector chassis where physical inputs illuminate in real time and clicking
 
 ## 🎸 CRKD Les Paul Pro Model Hardware Blueprint
 
+> **Measured on hardware (2026-11-13).** A CRKD Les Paul Pro connected to a Steam Deck
+> enumerates as **`20bc:5500`, name "CRKD Gamepad"** — not the `0x2E95` ids documented
+> elsewhere, and not a spoofed 360 pad. Its layout also differs from a generic guitar:
+> whammy is **`ABS_Z`** (not `ABS_RZ`), tilt is a digital **`ABS_HAT0X`** edge (not analog
+> `ABS_Y`), and the strum bar reports **`ABS_HAT0Y`** ±1 (not dpad buttons). Detection
+> accepts the measured ids and the profile keeps the device's real ids, so presets match
+> the hardware instead of silently binding the wrong control.
+
 ```
                       ┌──────────────────────┐
                       │   [CRKD PRO] LOGO    │
@@ -185,13 +194,42 @@ Visual vector chassis where physical inputs illuminate in real time and clicking
 ### One-Command Installer (Steam Deck)
 In SteamOS Desktop Mode (or via SSH), run:
 ```bash
-cd ~/deckforge-input-studio && ./install.sh
+curl -sL https://raw.githubusercontent.com/NaustudentX18/deckforge-input-studio/main/install.sh | bash
 ```
-*Respects SteamOS read-only root constraints by keeping dependencies self-contained in user space.*
+or from an existing checkout:
+```bash
+git clone https://github.com/NaustudentX18/deckforge-input-studio
+cd deckforge-input-studio && ./install.sh
+```
+
+The installer clones/fast-forwards into `~/homebrew/plugins/DeckForge Input Studio`,
+installs the Node deps, builds both frontend bundles (`dist/index.js` for Decky,
+`static/dist/web-entry.js` for the standalone web studio) and restarts
+`plugin_loader`.
+
+**It installs no Python packages on purpose.** Decky Loader runs plugins on its own
+frozen interpreter, which cannot see `~/.local/lib/python3.*/site-packages`, and
+SteamOS ships no `pip` for that interpreter. All backend dependencies
+(fastapi, starlette, pydantic, uvicorn, websockets, pyudev, evdev, mido, …) are
+vendored **once at packaging time** into `py_modules/lib` and shipped inside the
+plugin tree. `main.py` puts `py_modules/lib` at the front of `sys.path`.
+
+*The plugin does **not** request the Decky `root` flag: `/dev/input/event*` nodes
+are `uaccess`-granted to the `deck` user, Steam data lives under `/home/deck`, and
+the API port (8765) is unprivileged — so no `HOME=/root` remapping is needed.*
+
+### Re-vendoring Python dependencies
+```bash
+make vendor    # writes an x86_64 / cp314 wheelhouse into py_modules/lib
+```
+Decky's frozen interpreter on current SteamOS is CPython **3.14 x86_64**, so the
+wheelhouse must target `--python-platform x86_64-manylinux2014 --python-version 3.14`.
+`evdev` ships only an sdist, so it is built from source into the same directory.
 
 ### Remote Development Deployment
 To push updates from your PC to your Steam Deck over Wi-Fi / Tailscale:
 ```bash
+make deploy                      # defaults to deck@192.168.4.223
 make deploy DECK_HOST=100.x.y.z  # Steam Deck Tailscale IP
 ```
 
@@ -200,8 +238,31 @@ make deploy DECK_HOST=100.x.y.z  # Steam Deck Tailscale IP
 make zip
 # Generates dist/deckforge-input-studio.zip (clean, store-ready archive)
 ```
+The archive root contains `plugin.json`, `package.json`, `main.py`, `dist/`,
+`static/` (incl. `static/dist/web-entry.js`), `defaults/`, `assets/`,
+`py_modules/deckforge/**` and `py_modules/lib/**`; it excludes `tests`,
+`__pycache__`, `*.map`, `.venv` and `node_modules`.
 
 ---
+
+### Phone / PWA install
+
+Browsers only allow a service worker (and therefore installation) in a **secure
+context**. `http://<deck-lan-ip>:8765` is not one — the browser hides
+`navigator.serviceWorker` entirely. Two options that work:
+
+```bash
+# On the Deck: HTTPS with a real cert, proxied to the local API. Persists.
+sudo /opt/tailscale/tailscale serve --bg --https=443 http://127.0.0.1:8765
+```
+Then open `https://<deck-host>.<tailnet>.ts.net/` in Chrome and choose
+**Add to Home screen**. Alternatively `http://127.0.0.1:8765` on the Deck itself
+counts as secure.
+
+The service worker caches the **app shell only**. API responses are never cached:
+every value here is live hardware state, and a stale device list is worse than an
+honest failure. Navigations are network-first so a redeploy is picked up
+immediately, with the cached shell as the offline fallback.
 
 ## 🛠️ Testing & Verification
 

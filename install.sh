@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────
 # DeckForge Input Studio — One-command installer for Steam Deck
-# Usage:  curl -sL <url>/install.sh | bash
+# Usage:  curl -sL https://raw.githubusercontent.com/NaustudentX18/deckforge-input-studio/main/install.sh | bash
 #         or:  chmod +x install.sh && ./install.sh
+#
+# This script does exactly four things:
+#   1. verify Decky Loader is present
+#   2. clone or fast-forward the repo into ~/homebrew/plugins/DeckForge Input Studio
+#   3. install Node deps and build the frontend bundles (dist/, static/dist/)
+#   4. restart plugin_loader
+#
+# It deliberately installs NO Python packages. Decky Loader runs plugins on its
+# own frozen interpreter, which cannot see user site-packages, and SteamOS ships
+# no pip for it. All Python dependencies are vendored at packaging time into
+# py_modules/lib (see `make vendor`) and shipped inside the repo/zip.
 # ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 PLUGIN_NAME="DeckForge Input Studio"
-REPO_URL="https://github.com/deckforge/input-studio"
+REPO_URL="https://github.com/NaustudentX18/deckforge-input-studio"
 HOMEBREW_DIR="$HOME/homebrew"
 PLUGINS_DIR="$HOMEBREW_DIR/plugins"
 INSTALL_DIR="$PLUGINS_DIR/$PLUGIN_NAME"
@@ -35,13 +46,8 @@ if ! command -v git &>/dev/null; then
 fi
 
 if ! command -v npm &>/dev/null; then
-    warn "npm not found — installing nodejs via pacman …"
+    warn "npm not found — installing nodejs/npm via pacman …"
     sudo pacman -Sy --noconfirm nodejs npm
-fi
-
-if ! command -v pip &>/dev/null; then
-    warn "pip not found — installing python-pip via pacman …"
-    sudo pacman -Sy --noconfirm python-pip
 fi
 
 # ── install / update ─────────────────────────────────────────────────
@@ -56,39 +62,29 @@ else
     cd "$INSTALL_DIR"
 fi
 
+# ── vendored Python dependencies (shipped, never installed here) ─────
+if [[ ! -d "$INSTALL_DIR/py_modules/lib" ]]; then
+    warn "py_modules/lib is missing from this checkout."
+    warn "The plugin cannot import its Python dependencies without it —"
+    warn "install the released zip instead, or run 'make vendor' on a packaging machine."
+fi
+
 # ── frontend build ───────────────────────────────────────────────────
 info "Installing Node dependencies …"
 npm install --legacy-peer-deps
 
-info "Building frontend bundle …"
+info "Building frontend bundles …"
 npm run build
 
-# ── Python dependencies (Vendor into py_modules/lib for Decky Loader ABI) ───
-info "Detecting Decky Loader Python runtime …"
-DECKY_PY=""
-if [[ -x "$HOMEBREW_DIR/services/PluginLoader" ]]; then
-    DECKY_PY="$HOMEBREW_DIR/services/PluginLoader"
-elif [[ -x "$HOMEBREW_DIR/environments/plugin_loader/bin/python" ]]; then
-    DECKY_PY="$HOMEBREW_DIR/environments/plugin_loader/bin/python"
-elif [[ -x "$HOMEBREW_DIR/python/bin/python" ]]; then
-    DECKY_PY="$HOMEBREW_DIR/python/bin/python"
-elif command -v python3 &>/dev/null; then
-    DECKY_PY="$(command -v python3)"
-fi
-info "Using Python runtime: ${DECKY_PY:-python3}"
-
-mkdir -p "$INSTALL_DIR/py_modules/lib"
-info "Vendoring Python packages into py_modules/lib …"
-if [[ -n "$DECKY_PY" ]] && "$DECKY_PY" -m pip --version &>/dev/null; then
-    "$DECKY_PY" -m pip install --target "$INSTALL_DIR/py_modules/lib" --upgrade \
-        evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles mido 2>/dev/null || true
-fi
-
-# Fallback: install to user site-packages as backup
-pip install --user --break-system-packages \
-    evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles mido 2>/dev/null \
-    || pip install --user \
-    evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles mido 2>/dev/null || true
+info "Verifying build artefacts …"
+for f in "dist/index.js" "static/dist/web-entry.js"; do
+    if [[ -f "$INSTALL_DIR/$f" ]]; then
+        info "  ✓ $f"
+    else
+        error "  ✗ $f missing — frontend build failed."
+        exit 1
+    fi
+done
 
 # ── restart Decky Loader ─────────────────────────────────────────────
 info "Restarting Decky Loader plugin service …"

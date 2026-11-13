@@ -1,3 +1,4 @@
+import { fitSvgStyle } from '../../utils/svgFit';
 import React, { useMemo } from 'react';
 
 interface BlankCanvasProps {
@@ -77,7 +78,7 @@ export const BlankCanvas: React.FC<BlankCanvasProps> = ({
   const totalHeight = padY + titleHeight + buttonGridHeight + (axes.length > 0 ? 35 + axisSectionHeight : 0) + padY;
 
   const svgStyle = useMemo(
-    () => ({ width: totalWidth * scale, height: totalHeight * scale }),
+    () => fitSvgStyle(totalWidth, totalHeight, scale),
     [totalWidth, totalHeight, scale],
   );
 

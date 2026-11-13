@@ -18,10 +18,9 @@ from typing import Any, Optional
 import evdev
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import __version__ as _pkg_version
 from .calibration import (
     AxisCalibrator,
     CurveType,
@@ -127,18 +126,90 @@ _project_root = Path(__file__).resolve().parent.parent.parent
 _static_dir = _project_root / "static"
 _assets_dir = _project_root / "assets"
 
+# Static assets are served by reading the bytes in-process rather than through
+# StaticFiles/FileResponse.  Inside Decky Loader's frozen interpreter the
+# threadpool-backed file paths hand back a zero-length body while still sending
+# the full Content-Length, so uvicorn aborts the response ("Response content
+# shorter than Content-Length").  Reading directly is a few lines and behaves
+# identically in every interpreter this runs under.
+_MEDIA_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".map": "application/json",
+    ".webmanifest": "application/manifest+json",
+}
+
+
+# A service worker must never be served from cache, or a redeploy can leave
+# clients pinned to an old worker indefinitely.
+_NO_STORE_PATHS = frozenset({"/sw.js", "/manifest.webmanifest"})
+
+# Headers the PWA needs on every static response.
+_STATIC_HEADERS = {
+    # The service worker is same-origin; this keeps it usable from the Deck too.
+    "Service-Worker-Allowed": "/",
+    "X-Content-Type-Options": "nosniff",
+}
+
+
+def _serve_file(base: Path, relative: str, *, no_store: bool = False) -> Response:
+    """Return *relative* from *base*, refusing to escape it."""
+    try:
+        target = (base / relative).resolve()
+        target.relative_to(base.resolve())
+    except (ValueError, OSError):
+        return Response(content="Forbidden", status_code=403)
+    if not target.is_file():
+        return Response(content="Not found", status_code=404)
+    media_type = _MEDIA_TYPES.get(target.suffix.lower(), "application/octet-stream")
+    headers = dict(_STATIC_HEADERS)
+    headers["Cache-Control"] = "no-store" if no_store else "no-cache"
+    return Response(
+        content=target.read_bytes(), media_type=media_type, headers=headers
+    )
+
+
 if _static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+    @app.get("/static/{path:path}", include_in_schema=False)
+    async def serve_static(path: str) -> Response:
+        return _serve_file(
+            _static_dir, path, no_store=path in ("sw.js", "manifest.webmanifest")
+        )
+
+    @app.get("/sw.js", include_in_schema=False)
+    async def serve_service_worker() -> Response:
+        """Service workers must be same-origin at scope root."""
+        return _serve_file(_static_dir, "sw.js", no_store=True)
+
+    @app.get("/manifest.webmanifest", include_in_schema=False)
+    async def serve_manifest() -> Response:
+        return _serve_file(_static_dir, "manifest.webmanifest", no_store=True)
 if _assets_dir.exists():
-    app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+    @app.get("/assets/{path:path}", include_in_schema=False)
+    async def serve_asset(path: str) -> Response:
+        return _serve_file(_assets_dir, path)
 
 
 @app.get("/", include_in_schema=False)
-async def serve_index():
+async def serve_index() -> Response:
     index_file = _static_dir / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
-    return {"message": "DeckForge Input Studio API is running. Build frontend to view studio."}
+    if index_file.is_file():
+        return _serve_file(_static_dir, "index.html")
+    return Response(
+        content="DeckForge Input Studio API is running. Build the frontend to view the studio.",
+        media_type="text/plain",
+    )
 
 
 
@@ -147,19 +218,37 @@ async def serve_index():
 # ===================================================================
 
 class TemplateSaveRequest(BaseModel):
-    title: str
-    description: str = ""
-    creator: str = "DeckForge"
-    controller_type: str = "neptune"
-    version: int = 3
-    group_source_bindings: list[dict[str, Any]] = Field(default_factory=list)
-    action_sets: list[dict[str, Any]] = Field(default_factory=list)
-    action_layers: list[dict[str, Any]] = Field(default_factory=list)
+    """Accepts the studio's VDFTemplate payload.
 
+    The frontend sends ``{metadata, actionSets, ...}``; older clients send a
+    flat ``{title, controller_type, group_source_bindings}``.  Both are accepted
+    and normalised through ``VDFTemplate.from_dict``.
+    """
+    model_config = {"extra": "allow"}
 
-class TemplateImportRequest(BaseModel):
-    data: str
-    format: str = "vdf"  # "vdf" or "deckforge_json"
+    title: Optional[str] = None
+    description: Optional[str] = None
+    creator: Optional[str] = None
+    controller_type: Optional[str] = None
+    version: Optional[int] = None
+    metadata: Optional[dict[str, Any]] = None
+    actionSets: Optional[list[dict[str, Any]]] = None
+    action_sets: Optional[list[dict[str, Any]]] = None
+    group_source_bindings: Optional[list[dict[str, Any]]] = None
+    virtualMenus: Optional[list[dict[str, Any]]] = None
+    macros: Optional[list[dict[str, Any]]] = None
+    axisCalibrations: Optional[list[dict[str, Any]]] = None
+    turboConfigs: Optional[dict[str, Any]] = None
+
+    def to_template(self, fallback_name: str = "") -> "VDFTemplate":
+        """Build a VDFTemplate from whichever payload shape arrived."""
+        payload: dict[str, Any] = self.model_dump(exclude_none=True)
+        if fallback_name:
+            payload.setdefault("title", fallback_name)
+        tpl = VDFTemplate.from_dict(payload)
+        if fallback_name and not tpl.name:
+            tpl.name = fallback_name
+        return tpl
 
 
 class ExportRequest(BaseModel):
@@ -167,7 +256,16 @@ class ExportRequest(BaseModel):
 
 
 class AssignGameRequest(BaseModel):
-    template_name: str
+    """The studio sends ``templateName``; keep ``template_name`` working too."""
+    templateName: Optional[str] = None
+    template_name: Optional[str] = None
+
+    @property
+    def name(self) -> str:
+        value = self.templateName or self.template_name
+        if not value:
+            raise HTTPException(status_code=422, detail="templateName is required")
+        return value
 
 
 class PresetApplyRequest(BaseModel):
@@ -379,11 +477,27 @@ async def get_midi_devices_list() -> list[dict[str, Any]]:
 # REST Endpoints: VDF Templates CRUD & Import / Export
 # ===================================================================
 
+@app.get("/api/health")
+async def health() -> dict[str, Any]:
+    """Liveness probe used by the plugin and the standalone web client."""
+    return {
+        "ok": True,
+        "version": _pkg_version,
+        "steam": template_manager.steam_status(),
+    }
+
+
+@app.get("/api/steam/info")
+async def steam_info() -> dict[str, Any]:
+    """Where DeckForge publishes templates, and whether Steam will see them."""
+    return template_manager.steam_status()
+
+
 @app.get("/api/templates")
 async def get_templates() -> list[dict[str, Any]]:
-    """List all Steam base, user, and DeckForge local templates."""
+    """List DeckForge vault templates plus Steam's own base templates."""
     try:
-        return template_manager.list_all_templates()
+        return template_manager.list_templates()
     except Exception as exc:
         logger.error("Error listing templates: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -391,20 +505,14 @@ async def get_templates() -> list[dict[str, Any]]:
 
 @app.post("/api/templates")
 async def save_template(req: TemplateSaveRequest) -> dict[str, Any]:
-    """Save a new VDF template to the local vault and Steam user templates."""
+    """Create a template and publish it to Steam."""
     try:
-        tpl = VDFTemplate(
-            title=req.title,
-            description=req.description,
-            creator=req.creator,
-            controller_type=req.controller_type,
-            version=req.version,
-            group_source_bindings=req.group_source_bindings,
-            action_sets=req.action_sets,
-            action_layers=req.action_layers,
-        )
-        saved_path = template_manager.save_template(tpl)
-        return {"status": "success", "path": str(saved_path), "title": tpl.title}
+        tpl = req.to_template()
+        if not tpl.title:
+            raise HTTPException(status_code=400, detail="Template title is required")
+        return _save_and_report(tpl)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Error saving template: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
@@ -412,10 +520,9 @@ async def save_template(req: TemplateSaveRequest) -> dict[str, Any]:
 
 @app.get("/api/templates/{name}")
 async def get_template(name: str) -> dict[str, Any]:
-    """Load a template by name or path."""
+    """Load one template as the studio's JSON shape."""
     try:
-        tpl = template_manager._find_and_load(name)
-        return tpl.to_dict()
+        return template_manager._find_and_load(name).to_dict()
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Template '{name}' not found")
     except Exception as exc:
@@ -424,27 +531,19 @@ async def get_template(name: str) -> dict[str, Any]:
 
 @app.put("/api/templates/{name}")
 async def update_template(name: str, req: TemplateSaveRequest) -> dict[str, Any]:
-    """Update an existing template."""
+    """Update an existing template in place."""
     try:
-        tpl = VDFTemplate(
-            title=req.title or name,
-            description=req.description,
-            creator=req.creator,
-            controller_type=req.controller_type,
-            version=req.version,
-            group_source_bindings=req.group_source_bindings,
-            action_sets=req.action_sets,
-            action_layers=req.action_layers,
-        )
-        saved_path = template_manager.save_template(tpl)
-        return {"status": "updated", "path": str(saved_path), "title": tpl.title}
+        tpl = req.to_template(fallback_name=name)
+        return _save_and_report(tpl)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.delete("/api/templates/{name}")
 async def delete_template(name: str) -> dict[str, Any]:
-    """Delete a template from the vault (creating .bak backup)."""
+    """Delete a template from the vault and from Steam."""
     try:
         template_manager.delete_template(name)
         return {"status": "deleted", "name": name}
@@ -452,9 +551,29 @@ async def delete_template(name: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.post("/api/templates/{name}/sync")
+async def sync_template(name: str) -> dict[str, Any]:
+    """Re-publish an existing template into Steam's template directory."""
+    try:
+        tpl = template_manager._find_and_load(name)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Template '{name}' not found")
+
+    errors = template_manager.sync_to_steam(tpl)
+    status = template_manager.steam_status()
+    if errors:
+        raise HTTPException(status_code=409, detail="; ".join(errors))
+    return {
+        "status": "synced",
+        "name": name,
+        "published_to": str(template_manager.steam.controller_base_templates_dir() / f"{tpl.safe_name()}.vdf"),
+        "steam": status,
+    }
+
+
 @app.post("/api/templates/{name}/export")
 async def export_template(name: str, req: ExportRequest) -> Response:
-    """Export template as raw VDF text or DeckForge JSON."""
+    """Export a template as compiled VDF text or DeckForge JSON."""
     try:
         raw_bytes = template_manager.export_template(name, fmt=req.format)
         media_type = "application/json" if req.format == "deckforge_json" else "text/plain"
@@ -467,13 +586,45 @@ async def export_template(name: str, req: ExportRequest) -> Response:
 
 @app.post("/api/templates/import")
 async def import_template(req: TemplateImportRequest) -> dict[str, Any]:
-    """Import a template from raw string data."""
+    """Import a template from raw text."""
     try:
-        data_bytes = req.data.encode("utf-8")
-        tpl = template_manager.import_template(data_bytes, fmt=req.format)
-        return {"status": "imported", "title": tpl.title}
+        tpl = template_manager.import_template(req.data.encode("utf-8"), fmt=req.format)
+        return {"status": "imported", "title": tpl.title, "name": tpl.safe_name()}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Import failed: {exc}")
+
+
+@app.get("/api/templates/{name}/diff")
+async def template_diff(name: str) -> dict[str, Any]:
+    """Diff a template against Steam's stock template for its controller type."""
+    try:
+        tpl = template_manager._find_and_load(name)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Template '{name}' not found")
+    try:
+        from .steam_compiler import _load_skeleton
+
+        stock = VDFTemplate.from_vdf_dict(_load_skeleton(tpl.controller_type))
+        return {"template": tpl.title, "diff": diff_templates(tpl, stock)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+def _save_and_report(tpl: VDFTemplate) -> dict[str, Any]:
+    """Persist a template and report what Steam accepted."""
+    path = template_manager.save_template(tpl)
+    compiled = template_manager.last_compile
+    return {
+        "status": "success",
+        "name": tpl.safe_name(),
+        "title": tpl.title,
+        "path": str(path),
+        "template": tpl.to_dict(),
+        "published": compiled is not None and not template_manager.steam_status().get("writable") is False,
+        "applied": list(getattr(compiled, "applied", []) or []),
+        "skipped": list(getattr(compiled, "skipped", []) or []),
+        "steam": template_manager.steam_status(),
+    }
 
 
 # ===================================================================
@@ -482,9 +633,30 @@ async def import_template(req: TemplateImportRequest) -> dict[str, Any]:
 
 @app.get("/api/games")
 async def list_games() -> list[dict[str, Any]]:
-    """List all installed Steam games and non-Steam shortcuts."""
+    """List installed Steam games and non-Steam shortcuts.
+
+    Emitted in the studio's ``SteamGame`` shape (``appId`` as an int, camelCase
+    fields); the raw enumerator returns snake_case strings suitable for Steam.
+    """
     try:
-        return game_assigner.list_all_games()
+        games: list[dict[str, Any]] = []
+        for game in game_assigner.list_all_games():
+            raw_id = str(game.get("app_id") or "")
+            try:
+                app_id = int(raw_id)
+            except ValueError:
+                app_id = 0
+            games.append({
+                "appId": app_id,
+                "name": game.get("name") or "",
+                "installDir": game.get("install_dir") or game.get("start_dir") or "",
+                "headerImage": "",
+                "assignedTemplate": "",
+                "lastPlayed": 0,
+                "source": game.get("source") or "steam",
+                "appIdRaw": raw_id,
+            })
+        return games
     except Exception as exc:
         logger.error("Error listing games: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -492,10 +664,12 @@ async def list_games() -> list[dict[str, Any]]:
 
 @app.post("/api/games/{app_id}/assign")
 async def assign_game_template(app_id: str, req: AssignGameRequest) -> dict[str, Any]:
-    """Assign a template to a game (updating configset_controller_neptune.vdf)."""
+    """Bind a template to a game through Steam's configset indirection."""
     try:
-        game_assigner.assign_template_to_game(req.template_name, app_id, template_manager=template_manager)
-        return {"status": "assigned", "app_id": app_id, "template": req.template_name}
+        result = game_assigner.assign_template_to_game(
+            req.name, app_id, template_manager=template_manager
+        )
+        return {"status": "assigned", "app_id": app_id, "template": req.name, **result}
     except Exception as exc:
         logger.error("Error assigning template: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))

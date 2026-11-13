@@ -42,3 +42,13 @@ pnpm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Vendored Python dependencies shipped inside the plugin (py_modules/lib).
+# Decky's frozen interpreter cannot see site-packages, so these wheels/extensions
+# MUST be committed and archived. Re-generate with `make vendor`.
+!py_modules/lib/**
+!py_modules/lib/**/*.so
+# Build outputs (produced by `bun run build` / `make zip`; never commit them).
+dist/
+static/dist/
+.tmp_pkg/

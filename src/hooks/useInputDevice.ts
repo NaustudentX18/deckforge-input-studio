@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { InputDevice, InputEvent } from '../types';
+import { apiFetch, apiWs } from '../api/client';
 
 export interface BoundInputResult {
   devicePath: string;
@@ -23,7 +24,7 @@ export function useInputDevice(initialDevicePath?: string) {
   const fetchDevices = useCallback(async () => {
     setIsLoadingDevices(true);
     try {
-      const res = await fetch('http://localhost:8765/api/devices');
+      const res = await apiFetch('/api/devices');
       if (res.ok) {
         const data = await res.json();
         setDevices(data);
@@ -47,8 +48,10 @@ export function useInputDevice(initialDevicePath?: string) {
   const activeDevice = devices.find((d: InputDevice) => d.path === activeDevicePath) || null;
 
   // Live input stream WebSocket
+  // Backend expects the node name below /dev/input (e.g. "event5"); other
+  // sources such as "midi:<client>:<port>" are passed through untouched.
   const wsInputUrl = activeDevicePath
-    ? `ws://localhost:8765/ws/input/${encodeURIComponent(activeDevicePath.replace(/^\//, ''))}`
+    ? apiWs(`/ws/input/${encodeURIComponent(activeDevicePath.replace(/^\/?(dev\/input\/)?/, ''))}`)
     : '';
 
   const handleInputEvent = useCallback((event: InputEvent) => {
@@ -76,7 +79,7 @@ export function useInputDevice(initialDevicePath?: string) {
   });
 
   // "Press Any Input to Bind" WebSocket
-  const wsBindUrl = isBinding ? 'ws://localhost:8765/ws/bind' : '';
+  const wsBindUrl = isBinding ? apiWs('/ws/bind') : '';
 
   const handleBindMessage = useCallback((msg: any) => {
     if (msg && (msg.code !== undefined || msg.code_name || msg.codeLabel)) {

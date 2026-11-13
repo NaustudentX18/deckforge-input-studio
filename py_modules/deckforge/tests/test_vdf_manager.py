@@ -159,10 +159,12 @@ class TestVDFValidator:
         errors = VDFValidator.validate(tpl)
         assert any("title" in e.lower() for e in errors)
 
-    def test_invalid_controller_type(self):
-        tpl = VDFTemplate(title="Test", controller_type="invalid_type")
-        errors = VDFValidator.validate(tpl)
-        assert any("controller_type" in e.lower() for e in errors)
+    def test_unknown_controller_type_folds_to_supported_schema(self):
+        # An unsupported type must not reach Steam as an unknown schema: it is
+        # canonicalised to a schema we ship a skeleton for.
+        tpl = VDFTemplate(title="T", controller_type="nintendo_wii")
+        assert tpl.controller_type == "neptune"
+        assert VDFValidator.validate(tpl) == []
 
     def test_strict_validation_raises(self):
         tpl = VDFTemplate(title="", controller_type="unknown")
@@ -258,7 +260,7 @@ class TestAtomicWrite:
 class TestDiffTemplates:
     def test_diff_templates(self):
         t1 = VDFTemplate(title="Profile A", controller_type="neptune", version=3)
-        t2 = VDFTemplate(title="Profile B", controller_type="generic", version=3)
+        t2 = VDFTemplate(title="Profile B", controller_type="xbox360", version=3)
         diff = diff_templates(t1, t2)
         assert "title" in diff
         assert diff["title"]["template_a"] == "Profile A"

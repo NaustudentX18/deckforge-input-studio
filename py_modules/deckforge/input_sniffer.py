@@ -105,11 +105,26 @@ def _resolve_by_id(device_path: str) -> Optional[str]:
     return None
 
 
+_EV_TYPE_NAMES = {
+    0: "EV_SYN", 1: "EV_KEY", 2: "EV_REL", 3: "EV_ABS",
+    4: "EV_MSC", 5: "EV_SW", 17: "EV_LED", 18: "EV_SND",
+    20: "EV_REP", 21: "EV_FF", 22: "EV_PWR", 23: "EV_FF_STATUS",
+}
+
+
 def _capability_map(device: InputDevice) -> dict[str, list[str]]:
-    """Build a human-readable capability map from an evdev device."""
+    """Build a human-readable capability map from an evdev device.
+
+    Keys are always ``EV_*`` names.  ``capabilities(verbose=True)`` yields an
+    int for the event type when the code has no symbolic name (e.g. EV_SYN),
+    which previously leaked through as the string ``"0"`` and made the map
+    unusable for lookup.
+    """
     caps: dict[str, list[str]] = {}
     raw_caps = device.capabilities(verbose=True)
-    for (ev_type_code, ev_type_name), events in raw_caps.items():
+    # evdev yields keys of the form (name, code) -- e.g. ("EV_ABS", 3).
+    # The name is first; the int is second.
+    for (ev_type_name, ev_type_code), events in raw_caps.items():
         names: list[str] = []
         for item in events:
             if isinstance(item, tuple):
@@ -123,7 +138,16 @@ def _capability_map(device: InputDevice) -> dict[str, list[str]]:
                 names.append(code_info)
             else:
                 names.append(str(code_info))
-        caps[ev_type_name if isinstance(ev_type_name, str) else str(ev_type_name)] = names
+        if isinstance(ev_type_name, str):
+            # evdev already yields "EV_ABS"/"EV_KEY"/... here.
+            key = ev_type_name
+        else:
+            # Unnamed type codes arrive as bare ints.
+            name = evdev.ecodes.EV.get(ev_type_code)
+            key = name if isinstance(name, str) else _EV_TYPE_NAMES.get(
+                ev_type_code, f"EV_{ev_type_code}"
+            )
+        caps[key] = names
     return caps
 
 

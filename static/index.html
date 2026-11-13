@@ -2,27 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- viewport-fit=cover lets the app paint under the S25's rounded corners and
+       gesture bar; the layout compensates with safe-area insets. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>DeckForge Input Studio</title>
+  <meta name="description" content="Visual controller mapper and Steam Input template studio for the Steam Deck.">
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0e0e17">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DeckForge">
+  <meta name="application-name" content="DeckForge">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+
   <link rel="icon" type="image/svg+xml" href="/assets/svg/deckforge-logo.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      user-select: none;
+      /* Input surfaces (the hardware canvas, monitors) are not text, but
+         disabling selection app-wide breaks copying read-only values such as
+         the Steam path. Disable it where it matters instead. */
+      -webkit-tap-highlight-color: transparent;
     }
-    body, html {
+    html, body {
       width: 100%;
       height: 100%;
       background-color: #0e0e17;
       color: #eee;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       overflow: hidden;
+      /* Stop the iOS/Android rubber-band bounce from fighting the app's own scroll */
+      overscroll-behavior: none;
     }
     #root {
       width: 100%;
       height: 100%;
+    }
+    /* Blueprint SVGs size themselves via fitSvgStyle(); this is the belt-and-
+       braces guard for any that forget, without !important overriding the
+       authored max dimensions. */
+    [data-canvas] svg {
+      max-width: 100%;
+      max-height: 100%;
+    }
+    /* The hardware canvas and monitors opt out of text selection. */
+    [data-no-select] {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    /* Respect the OS reduced-motion setting for the toast/fade animations. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
     }
   </style>
 </head>

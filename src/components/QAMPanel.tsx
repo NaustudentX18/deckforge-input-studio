@@ -10,6 +10,7 @@ import {
 import { useInputDevice } from '../hooks/useInputDevice';
 import { useVDFTemplate } from '../hooks/useVDFTemplate';
 import { VDFTemplate } from '../types';
+import { apiFetch } from '../api/client';
 
 export const QAMPanel: FC = () => {
   const [showMonitor, setShowMonitor] = useState<boolean>(false);
@@ -43,27 +44,22 @@ export const QAMPanel: FC = () => {
     setInjectStatus('Injecting...');
 
     try {
-      // Find currently running or active game, or fallback to first installed game
+      // Assign to a known installed game when we have one, otherwise push the
+      // active template straight into Steam's controller config dirs.
       const targetGame = games[0];
       if (targetGame) {
         const ok = await assignGameTemplate(targetGame.appId, activeTemplate.metadata.name);
-        if (ok) {
-          setInjectStatus(`Applied to ${targetGame.name}!`);
-        } else {
-          setInjectStatus('Failed to apply.');
-        }
+        setInjectStatus(ok ? `Applied to ${targetGame.name}!` : 'Failed to apply.');
       } else {
-        // Fallback REST call to inject directly
-        const res = await fetch('http://localhost:8765/api/inject', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateName: activeTemplate.metadata.name }),
-        });
-        if (res.ok) {
-          setInjectStatus('Template Injected!');
-        } else {
-          setInjectStatus('Injection error.');
-        }
+        const res = await apiFetch(
+          `/api/templates/${encodeURIComponent(activeTemplate.metadata.name)}/sync`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          }
+        );
+        setInjectStatus(res.ok ? 'Synced to Steam' : 'Sync failed.');
       }
     } catch {
       setInjectStatus('Network error.');
@@ -142,7 +138,6 @@ export const QAMPanel: FC = () => {
         <ButtonItem
           layout="below"
           onClick={handleLaunchStudio}
-          style={{ backgroundColor: '#e94560' }}
         >
           Launch Full Studio
         </ButtonItem>

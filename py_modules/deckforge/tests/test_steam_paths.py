@@ -7,12 +7,12 @@ import tempfile
 import zlib
 
 from deckforge.vdf_manager import (
-    GameAssigner,
     SteamPathResolver,
     TemplateManager,
     VDFTemplate,
     calculate_shortcut_id_32,
     calculate_shortcut_id_64,
+    parse_vdf,
 )
 
 
@@ -33,16 +33,20 @@ def test_shortcut_crc32_calculations():
     assert (id_64 >> 32) == id_32
 
 
-def test_multi_path_vdf_sync():
+def test_vdf_publishes_to_controller_base_templates():
+    """Steam enumerates templates from controller_base/templates on this build.
+
+    ``userdata/<id>/config/controller_configs/templates`` and
+    ``userdata/<id>/241100/remote`` do not exist on SteamOS 20261023.100, so
+    writing there is silent data loss.
+    """
     with tempfile.TemporaryDirectory() as tmp_dir:
         root = Path(tmp_dir)
         steam_dir = root / "Steam"
         user_id = "12345678"
 
-        # Create mock Steam structure
-        (steam_dir / "userdata" / user_id / "config" / "controller_configs" / "templates").mkdir(parents=True)
-        (steam_dir / "steamapps" / "common" / "Steam Controller Configs" / user_id / "config").mkdir(parents=True)
-        (steam_dir / "userdata" / user_id / "241100" / "remote").mkdir(parents=True)
+        (steam_dir / "controller_base" / "templates").mkdir(parents=True)
+        (steam_dir / "userdata" / user_id / "config").mkdir(parents=True)
 
         local_vault = root / "vault"
         resolver = SteamPathResolver(steam_root=steam_dir)
@@ -51,36 +55,45 @@ def test_multi_path_vdf_sync():
         tpl = VDFTemplate(
             title="MultiSync Test",
             controller_type="neptune",
-            group_source_bindings=[{"name": "A", "target": "btn_a"}],
+            action_sets=[{
+                "id": "default_set", "name": "Default", "layers": [],
+                "bindings": [{
+                    "id": "b1", "label": "A", "sourceCode": "BTN_SOUTH",
+                    "output": {"type": "gamepad", "code": "BTN_A"},
+                    "activator": {"type": "RegularPress"}, "enabled": True,
+                }],
+            }],
         )
 
         saved_path = manager.save_template(tpl)
         assert saved_path.exists()
         assert (local_vault / "multisync_test.vdf").exists()
 
-        # Check sync location 1: userdata templates
-        user_tpl = steam_dir / "userdata" / user_id / "config" / "controller_configs" / "templates" / "multisync_test.vdf"
-        assert user_tpl.exists()
+        published = steam_dir / "controller_base" / "templates" / "multisync_test.vdf"
+        assert published.exists(), "template must land where Steam reads it"
 
-        # Check sync location 2: common controller configs
-        common_cfg = steam_dir / "steamapps" / "common" / "Steam Controller Configs" / user_id / "config" / "multisync_test.vdf"
-        assert common_cfg.exists()
+        text = published.read_text(encoding="utf-8-sig")
+        assert text.startswith('"controller_mappings"')
+        assert "xinput_button A" in text
 
-        # Check sync location 3: Cloud 241100 remote
-        cloud_cfg = steam_dir / "userdata" / user_id / "241100" / "remote" / "multisync_test.vdf"
-        assert cloud_cfg.exists()
+        # The published file must be what Steam's own parser accepts.
+        assert "controller_mappings" in parse_vdf(text)
 
 
-def test_schema_variants_generation():
+def test_schema_variants_compile_per_controller():
+    """Each variant is compiled against its own skeleton, not renamed."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         root = Path(tmp_dir)
+        (root / "controller_base" / "templates").mkdir(parents=True)
         manager = TemplateManager(steam=SteamPathResolver(steam_root=root), local_dir=root / "vault")
 
         tpl = VDFTemplate(title="Universal Rhythms", controller_type="neptune")
-        paths = manager.save_schema_variants(tpl, schemas=["neptune", "xbox360", "ps4", "generic"])
+        paths = manager.save_schema_variants(tpl, schemas=["neptune", "xbox360"])
 
-        assert len(paths) == 4
-        assert (root / "vault" / "universal_rhythms.vdf").exists()
-        assert (root / "vault" / "universal_rhythms__xbox360_.vdf").exists()
-        assert (root / "vault" / "universal_rhythms__ps4_.vdf").exists()
-        assert (root / "vault" / "universal_rhythms__generic_.vdf").exists()
+        assert len(paths) == 2
+        assert (root / "vault" / "universal_rhythms_neptune.vdf").exists()
+        assert (root / "vault" / "universal_rhythms_xbox360.vdf").exists()
+
+        # The xbox360 variant must carry the xbox360 controller type inside.
+        xbox = (root / "vault" / "universal_rhythms_xbox360.vdf").read_text()
+        assert "controller_xbox360" in xbox

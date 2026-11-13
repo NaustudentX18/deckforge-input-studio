@@ -64,5 +64,8 @@ jobs:
         run: |
           test -f dist/index.js
           test -f static/dist/web-entry.js
-          zip -r dist/deckforge-input-studio.zip plugin.json main.py dist/ py_modules/ static/dist/ defaults/ -x "py_modules/deckforge/tests/*" "**/__pycache__/*"
+          test -d py_modules/lib/fastapi
+          make zip
           test -f dist/deckforge-input-studio.zip
+          unzip -l dist/deckforge-input-studio.zip | grep -q 'py_modules/lib/fastapi/__init__.py'
+          unzip -l dist/deckforge-input-studio.zip | grep -q 'static/dist/web-entry.js'

@@ -20,9 +20,11 @@ import { CalibrationPanel } from './CalibrationPanel';
 import { LatencyTester } from './LatencyTester';
 import { DiagnosticVisualizer } from './DiagnosticVisualizer';
 import { useInputDevice } from '../hooks/useInputDevice';
+import { useViewport, useIsTouch, TOUCH_TARGET } from '../hooks/useResponsive';
 import { useVDFTemplate } from '../hooks/useVDFTemplate';
 import { BindingConfig } from '../utils/mapping';
 import { ActionSet, ActionSetLayer, VDFTemplate } from '../types';
+import { apiBase, apiFetch } from '../api/client';
 
 export type StudioTab =
   | 'mappings'
@@ -35,8 +37,32 @@ export type StudioTab =
   | 'diagnostics'
   | 'vdf';
 
+interface StudioTabDef {
+  id: StudioTab;
+  label: string;
+  short: string;
+  icon: string;
+  /** Shown in the phone bottom bar. */
+  primary: boolean;
+}
+
+const STUDIO_TABS: StudioTabDef[] = [
+  { id: 'mappings', label: 'Mappings', short: 'Map', icon: '🎮', primary: true },
+  { id: 'devices', label: 'Live Monitor', short: 'Live', icon: '📡', primary: true },
+  { id: 'templates', label: 'Profiles', short: 'Profiles', icon: '📁', primary: true },
+  { id: 'layers', label: 'Action Layers', short: 'Layers', icon: '📑', primary: false },
+  { id: 'macros', label: 'Macros & Turbo', short: 'Macros', icon: '⚡', primary: false },
+  { id: 'calibration', label: 'Calibration', short: 'Calibrate', icon: '🎯', primary: false },
+  { id: 'latency', label: 'Latency Test', short: 'Latency', icon: '⏱', primary: false },
+  { id: 'diagnostics', label: 'Hardware Diag', short: 'Diag', icon: '🔍', primary: false },
+  { id: 'vdf', label: 'VDF Inspector', short: 'VDF', icon: '📄', primary: false },
+];
+
 export const FullStudio: React.FC = () => {
   const [activeTab, setActiveTab] = useState<StudioTab>('mappings');
+  const { isCompact } = useViewport();
+  const isTouch = useIsTouch();
+  const [showMoreTabs, setShowMoreTabs] = useState(false);
   const [selectedInputCode, setSelectedInputCode] = useState<string | null>(null);
   const [activeSetId, setActiveSetId] = useState<string>('default_set');
   const [activeLayerId, setActiveLayerId] = useState<string>('default_layer');
@@ -53,10 +79,50 @@ export const FullStudio: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Steam installation summary shown in the header; silently absent if unknown.
+  const [steamInfo, setSteamInfo] = useState<{
+    steam_root: string;
+    writable: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/steam/info');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data?.steam_root) return;
+        const writable =
+          data.writable ?? data.template_dir_writable ?? data.templateDirWritable;
+        setSteamInfo({ steam_root: String(data.steam_root), writable: writable === true });
+      } catch (err) {
+        console.debug('Steam info unavailable:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const syncTemplate = async (name: string) => {
+    try {
+      const res = await apiFetch(`/api/templates/${encodeURIComponent(name)}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('Failed to sync template to Steam:', err);
+      return false;
+    }
+  };
+
   const handleOpenQR = async () => {
     setShowQRModal(true);
     try {
-      const res = await fetch(`http://${window.location.hostname || '127.0.0.1'}:8765/api/system/network-info`);
+      const res = await apiFetch('/api/system/network-info');
       if (res.ok) {
         const data = await res.json();
         setQrInfo(data);
@@ -195,9 +261,11 @@ export const FullStudio: React.FC = () => {
         return (
           <BlankCanvas
             {...commonProps}
-            deviceCapabilities={{
-              keys: activeDevice?.capabilities.keys || [],
-              axes: activeDevice?.capabilities.axes || [],
+            capabilities={{
+              // DeviceCapabilities reports raw evdev codes; the canvas labels
+              // its generated cells with strings.
+              buttons: (activeDevice?.capabilities.keys || []).map((code) => String(code)),
+              axes: (activeDevice?.capabilities.axes || []).map((code) => String(code)),
             }}
           />
         );
@@ -206,38 +274,66 @@ export const FullStudio: React.FC = () => {
 
   return (
     <div style={{
-      width: '100vw',
-      height: '100vh',
-      maxWidth: '1280px',
-      maxHeight: '800px',
+      width: '100%',
+      height: '100%',
+      // Fill the parent box rather than the viewport: the view switcher owns a
+      // row above this component, so 100vh would overflow and push the status
+      // bar off-screen.
+      minHeight: 0,
       backgroundColor: '#161626',
       color: '#eee',
       display: 'flex',
       flexDirection: 'column',
       fontFamily: 'Inter, system-ui, sans-serif',
       overflow: 'hidden',
-      userSelect: 'none'
-    }}>
+      // Safe-area padding keeps the UI clear of notches, rounded corners and
+      // the gesture bar on phones; it resolves to 0 on the Deck and desktop.
+      paddingTop: 'env(safe-area-inset-top)',
+      paddingLeft: 'env(safe-area-inset-left)',
+      paddingRight: 'env(safe-area-inset-right)',
+      paddingBottom: 'env(safe-area-inset-bottom)'
+    }} data-no-select>
       {/* Top Studio Bar */}
       <div style={{
-        height: '48px',
+        minHeight: isCompact ? `${TOUCH_TARGET + 8}px` : '48px',
         backgroundColor: '#1a1a2e',
         borderBottom: '1px solid #2d2d44',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 16px',
-        flexShrink: 0
+        padding: isCompact ? '6px 10px' : '0 16px',
+        gap: isCompact ? '6px' : '8px',
+        flexShrink: 0,
+        flexWrap: isCompact ? 'wrap' : 'nowrap',
+        // Wide layout: never clip a control's label. If the bar cannot fit at
+        // a narrow desktop width it scrolls horizontally instead of truncating.
+        overflowX: isCompact ? 'hidden' : 'auto',
+        overflowY: 'hidden'
       }}>
         {/* Brand & Active Device Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: isCompact ? '6px' : '16px',
+          flexWrap: 'wrap',
+          width: isCompact ? '100%' : undefined,
+          flexShrink: 0,
+        }}>
+          {/* Brand: its own line on a phone so the pickers get full width. */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            width: isCompact ? '100%' : undefined,
+          }}>
             <span style={{ fontSize: '18px', fontWeight: 800, color: '#e94560', letterSpacing: '-0.02em' }}>
               DECKFORGE
             </span>
-            <span style={{ fontSize: '11px', color: '#888', fontWeight: 600, letterSpacing: '0.05em' }}>
-              INPUT STUDIO
-            </span>
+            {!isCompact && (
+              <span style={{ fontSize: '11px', color: '#888', fontWeight: 600, letterSpacing: '0.05em' }}>
+                INPUT STUDIO
+              </span>
+            )}
           </div>
 
           {/* Device Selector */}
@@ -245,12 +341,17 @@ export const FullStudio: React.FC = () => {
             value={activeDevicePath || ''}
             onChange={(e) => selectDevice(e.target.value)}
             style={{
-              padding: '4px 10px',
+              padding: isCompact ? '10px 10px' : '4px 10px',
               backgroundColor: '#121220',
               border: '1px solid #33334d',
               borderRadius: '4px',
               color: '#fff',
-              fontSize: '12px'
+              fontSize: isCompact ? '13px' : '12px',
+              maxWidth: isCompact ? 'none' : undefined,
+              flex: isCompact ? '1 1 0' : undefined,
+              minWidth: 0,
+              // iOS zooms a focused control whose text is under 16px.
+              ...(isTouch ? { fontSize: '16px' } : {})
             }}
           >
             {devices.length === 0 ? (
@@ -269,13 +370,17 @@ export const FullStudio: React.FC = () => {
             value={blueprintType}
             onChange={(e) => setBlueprintOverride(e.target.value)}
             style={{
-              padding: '4px 10px',
+              padding: isCompact ? '10px 10px' : '4px 10px',
               backgroundColor: '#181928',
               border: '1px solid #d97706',
               borderRadius: '4px',
               color: '#f59e0b',
-              fontSize: '12px',
+              fontSize: isCompact ? '13px' : '12px',
               fontWeight: 600,
+              maxWidth: isCompact ? 'none' : undefined,
+              flex: isCompact ? '1 1 0' : undefined,
+              minWidth: 0,
+              ...(isTouch ? { fontSize: '16px' } : {})
             }}
             title="Switch Active Hardware Blueprint"
           >
@@ -294,7 +399,9 @@ export const FullStudio: React.FC = () => {
           <button
             onClick={isBinding ? stopBinding : startBinding}
             style={{
-              padding: '4px 10px',
+              padding: isCompact ? '10px 12px' : '4px 10px',
+              minHeight: isCompact ? TOUCH_TARGET : undefined,
+              flexShrink: 0,
               backgroundColor: isBinding ? '#e94560' : '#2563eb',
               color: '#fff',
               border: 'none',
@@ -309,7 +416,17 @@ export const FullStudio: React.FC = () => {
         </div>
 
         {/* Global Template & Save Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: isCompact ? '8px' : '12px',
+          flexWrap: isCompact ? 'wrap' : 'nowrap',
+          width: isCompact ? '100%' : undefined,
+          // The Steam path is long; on a phone it must be allowed to shrink
+          // rather than push the Save button off-screen.
+          minWidth: 0,
+          flexShrink: 0,
+        }}>
           <button
             onClick={handleOpenQR}
             style={{
@@ -329,7 +446,14 @@ export const FullStudio: React.FC = () => {
             📱 Remote QR
           </button>
 
-          <span style={{ fontSize: '12px', color: '#a0a0b8' }}>
+          <span style={{
+            fontSize: '12px',
+            color: '#a0a0b8',
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
             Profile: <strong style={{ color: '#fff' }}>{activeTemplate?.metadata.title || 'Default'}</strong>
           </span>
 
@@ -341,12 +465,28 @@ export const FullStudio: React.FC = () => {
 
           <button
             onClick={async () => {
-              await saveTemplate();
-              triggerToast(`VDF Template "${activeTemplate?.metadata.title || 'Custom'}" synced to Steam Gaming Mode!`);
+              const name = activeTemplate?.metadata.name;
+              const title = activeTemplate?.metadata.title || 'Custom';
+              const saved = await saveTemplate();
+              if (!saved) {
+                triggerToast(`Failed to save VDF template "${title}".`);
+                return;
+              }
+              if (!name) {
+                triggerToast(`Saved "${title}" locally, but there is no active template to sync to Steam.`);
+                return;
+              }
+              if (await syncTemplate(name)) {
+                triggerToast(`VDF Template "${title}" synced to Steam Gaming Mode!`);
+              } else {
+                triggerToast(`Saved "${title}", but syncing to Steam failed.`);
+              }
             }}
             disabled={!isDirty}
             style={{
-              padding: '4px 14px',
+              padding: isCompact ? '10px 16px' : '4px 14px',
+              minHeight: isCompact ? TOUCH_TARGET : undefined,
+              flexShrink: 0,
               backgroundColor: isDirty ? '#e94560' : '#27273a',
               color: isDirty ? '#fff' : '#666',
               border: 'none',
@@ -362,8 +502,9 @@ export const FullStudio: React.FC = () => {
       </div>
 
       {/* Main Layout Area: Sidebar Tabs + Content */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Sidebar Navigation */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: isCompact ? 'column' : 'row', overflow: 'hidden' }}>
+        {/* Sidebar Navigation (wide layouts only; phones use the bottom bar) */}
+        {!isCompact && (
         <div style={{
           width: '180px',
           backgroundColor: '#141422',
@@ -373,17 +514,7 @@ export const FullStudio: React.FC = () => {
           padding: '8px 0',
           flexShrink: 0
         }}>
-          {[
-            { id: 'mappings', label: 'Mappings', icon: '🎮' },
-            { id: 'devices', label: 'Live Monitor', icon: '📡' },
-            { id: 'templates', label: 'Profiles', icon: '📁' },
-            { id: 'layers', label: 'Action Layers', icon: '📑' },
-            { id: 'macros', label: 'Macros & Turbo', icon: '⚡' },
-            { id: 'calibration', label: 'Calibration', icon: '🎯' },
-            { id: 'latency', label: 'Latency Test', icon: '⏱' },
-            { id: 'diagnostics', label: 'Hardware Diag', icon: '🔍' },
-            { id: 'vdf', label: 'VDF Inspector', icon: '📄' },
-          ].map((item) => {
+          {STUDIO_TABS.map((item) => {
             const isCurrent = activeTab === item.id;
             return (
               <button
@@ -411,32 +542,98 @@ export const FullStudio: React.FC = () => {
             );
           })}
         </div>
+        )}
 
         {/* Center / Main Content View */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
           {activeTab === 'mappings' && (
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
               {/* Left/Center Hardware Visualizer Canvas */}
               <div style={{
                 flex: 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '16px',
+                minHeight: 0,
+                minWidth: 0,
+                padding: isCompact ? '4px' : '16px',
                 backgroundColor: '#10101d',
-                overflow: 'auto'
-              }}>
+                overflow: 'auto',
+                // Let a finger pan the canvas but not zoom the page.
+                touchAction: 'pan-x pan-y',
+                WebkitOverflowScrolling: 'touch'
+              }} data-no-select data-canvas>
                 {renderHardwareCanvas()}
               </div>
 
-              {/* Binding Editor Modal/Flyout */}
+              {/* Binding Editor: a docked flyout on wide screens, a bottom
+                  sheet on phones so it never covers the thing being mapped. */}
               {selectedInputCode && (
-                <div style={{
-                  position: 'absolute',
-                  right: '20px',
-                  top: '20px',
-                  zIndex: 20
-                }}>
+                <div
+                  style={
+                    isCompact
+                      ? {
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          top: '42%',
+                          zIndex: 30,
+                          backgroundColor: '#181829',
+                          borderTop: '1px solid #33334d',
+                          borderTopLeftRadius: '14px',
+                          borderTopRightRadius: '14px',
+                          boxShadow: '0 -8px 32px rgba(0,0,0,0.6)',
+                          overflowY: 'auto',
+                          WebkitOverflowScrolling: 'touch',
+                          paddingBottom: 'env(safe-area-inset-bottom)',
+                        }
+                      : {
+                          position: 'absolute',
+                          right: '20px',
+                          top: '20px',
+                          zIndex: 20,
+                        }
+                  }
+                >
+                  {isCompact && (
+                    <div
+                      onClick={() => setSelectedInputCode(null)}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 14px',
+                        borderBottom: '1px solid #2d2d44',
+                        position: 'sticky',
+                        top: 0,
+                        backgroundColor: '#181829',
+                        zIndex: 1,
+                      }}
+                    >
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>
+                        Bind {selectedInputCode}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedInputCode(null);
+                        }}
+                        style={{
+                          minWidth: TOUCH_TARGET,
+                          minHeight: TOUCH_TARGET,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#a0a0b8',
+                          fontSize: '20px',
+                          cursor: 'pointer',
+                        }}
+                        aria-label="Close binding editor"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                   <MappingEditor
                     inputCode={selectedInputCode}
                     onApply={handleApplyBinding}
@@ -616,9 +813,146 @@ export const FullStudio: React.FC = () => {
         </div>
       </div>
 
+      {/* "More" sheet: the destinations that do not fit the bottom bar. */}
+      {isCompact && showMoreTabs && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            zIndex: 40,
+            display: 'flex',
+            alignItems: 'flex-end',
+          }}
+          onClick={() => setShowMoreTabs(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              backgroundColor: '#181829',
+              borderTopLeftRadius: '14px',
+              borderTopRightRadius: '14px',
+              borderTop: '1px solid #33334d',
+              padding: '12px',
+              paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '8px',
+            }}
+          >
+            {STUDIO_TABS.map((tab) => {
+              const isCurrent = activeTab === tab.id;
+              return (
+                <button
+                  key={`more-${tab.id}`}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setShowMoreTabs(false);
+                  }}
+                  style={{
+                    minHeight: TOUCH_TARGET + 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    backgroundColor: isCurrent ? '#1e1e34' : '#141422',
+                    border: isCurrent ? '1px solid #e94560' : '1px solid #2d2d44',
+                    borderRadius: '10px',
+                    color: isCurrent ? '#e94560' : '#c8c8d8',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: '18px', lineHeight: 1 }}>{tab.icon}</span>
+                  <span>{tab.short}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Phone bottom navigation. Nine destinations do not fit a bottom bar, so
+          the four most-used are pinned and the rest live behind "More", which
+          opens as a sheet rather than a cramped scroll row. */}
+      {isCompact && (
+        <nav
+          style={{
+            display: 'flex',
+            alignItems: 'stretch',
+            backgroundColor: '#141422',
+            borderTop: '1px solid #2d2d44',
+            flexShrink: 0,
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
+        >
+          {STUDIO_TABS.filter((tab) => tab.primary || activeTab === tab.id).map((tab) => {
+            const isCurrent = activeTab === tab.id;
+            return (
+              <button
+                key={`bar-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  flex: 1,
+                  minHeight: TOUCH_TARGET + 8,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '2px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderTop: isCurrent ? '2px solid #e94560' : '2px solid transparent',
+                  color: isCurrent ? '#e94560' : '#a0a0b8',
+                  fontSize: '10px',
+                  fontWeight: isCurrent ? 700 : 500,
+                  cursor: 'pointer',
+                  padding: '4px 2px',
+                }}
+                aria-current={isCurrent ? 'page' : undefined}
+              >
+                <span style={{ fontSize: '16px', lineHeight: 1 }}>{tab.icon}</span>
+                <span>{tab.short}</span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setShowMoreTabs((v) => !v)}
+            style={{
+              flex: 1,
+              minHeight: TOUCH_TARGET + 8,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+              background: 'transparent',
+              border: 'none',
+              borderTop: showMoreTabs ? '2px solid #e94560' : '2px solid transparent',
+              color: showMoreTabs ? '#e94560' : '#a0a0b8',
+              fontSize: '10px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '4px 2px',
+            }}
+            aria-expanded={showMoreTabs}
+            aria-label="More tools"
+          >
+            <span style={{ fontSize: '16px', lineHeight: 1 }}>{showMoreTabs ? '✕' : '⋯'}</span>
+            <span>More</span>
+          </button>
+        </nav>
+      )}
+
       {/* Bottom Status Bar */}
       <div style={{
-        height: '28px',
+        height: isCompact ? '0px' : '28px',
+        minHeight: isCompact ? '0px' : '28px',
+        flexShrink: 0,
+        overflow: 'hidden',
         backgroundColor: '#121220',
         borderTop: '1px solid #222235',
         display: 'flex',
@@ -626,8 +960,7 @@ export const FullStudio: React.FC = () => {
         justifyContent: 'space-between',
         padding: '0 16px',
         fontSize: '11px',
-        color: '#71717a',
-        flexShrink: 0
+        color: '#71717a'
       }}>
         <div style={{ display: 'flex', gap: '16px' }}>
           <span>Device: <strong style={{ color: '#ccc' }}>{activeDevice?.name || 'None'}</strong></span>
@@ -635,7 +968,17 @@ export const FullStudio: React.FC = () => {
           <span>Active Inputs: <strong style={{ color: '#ccc' }}>{inputStates.size}</strong></span>
         </div>
 
-        <div style={{ display: 'flex', gap: '14px' }}>
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', minWidth: 0 }}>
+          {steamInfo && (
+            <span
+              title={`${steamInfo.steam_root} — template dir ${steamInfo.writable ? 'writable' : 'read-only'}`}
+              style={{ maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              Steam: <strong style={{ color: steamInfo.writable ? '#22c55e' : '#ef4444' }}>
+                {steamInfo.writable ? 'writable' : 'read-only'}
+              </strong>
+            </span>
+          )}
           <span>Resolution: 1280×800</span>
           <span>DeckForge v0.1.0</span>
         </div>
@@ -645,8 +988,9 @@ export const FullStudio: React.FC = () => {
       {toastMessage && (
         <div style={{
           position: 'absolute',
-          bottom: '42px',
-          right: '24px',
+          bottom: isCompact ? 'calc(64px + env(safe-area-inset-bottom))' : '42px',
+          left: isCompact ? '12px' : undefined,
+          right: isCompact ? '12px' : '24px',
           backgroundColor: '#1e1e30',
           border: '1px solid #e94560',
           borderRadius: '6px',
@@ -668,24 +1012,34 @@ export const FullStudio: React.FC = () => {
 
       {/* Remote QR Code Pairing Modal */}
       {showQRModal && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000,
-        }}>
-          <div style={{
-            width: '440px',
+        <div
+          onClick={() => setShowQRModal(false)}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: isCompact ? '12px' : 0,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+            width: isCompact ? '100%' : '440px',
+            maxWidth: '440px',
+            maxHeight: isCompact ? '86vh' : undefined,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
             backgroundColor: '#181829',
             border: '1px solid #33334d',
             borderRadius: '12px',
-            padding: '24px',
+            padding: isCompact ? '16px' : '24px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -729,7 +1083,7 @@ export const FullStudio: React.FC = () => {
               fontSize: '13px',
               userSelect: 'text'
             }}>
-              {qrInfo?.remote_url || 'http://steamdeck:8765/'}
+              {qrInfo?.remote_url || `${apiBase()}/`}
             </div>
 
             <button

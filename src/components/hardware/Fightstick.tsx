@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { fitSvgStyle } from '../../utils/svgFit';
 
 interface FightstickProps {
   activeInputs: Map<string, number>;
@@ -35,7 +36,7 @@ export const Fightstick: React.FC<FightstickProps> = ({
   const isSelected = (code: string) => selectedInput === code;
 
   const svgStyle = useMemo(
-    () => ({ width: 600 * scale, height: 300 * scale }),
+    () => fitSvgStyle(600, 300, scale),
     [scale],
   );
 

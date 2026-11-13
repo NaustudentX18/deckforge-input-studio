@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import FullStudio from './components/FullStudio';
 import LaunchPage from './components/LaunchPage';
 import { useInputDevice } from './hooks/useInputDevice';
 import { useVDFTemplate } from './hooks/useVDFTemplate';
+import { useViewport, registerServiceWorker } from './hooks/useResponsive';
 
 // Contexts for standalone web mode
 export const DeviceContext = createContext<ReturnType<typeof useInputDevice> | null>(null);
@@ -23,14 +24,23 @@ export const useTemplateContext = () => {
 export const App: React.FC = () => {
   const deviceState = useInputDevice();
   const templateState = useVDFTemplate();
+  const { isCompact } = useViewport();
   const [currentView, setCurrentView] = useState<'launch' | 'studio'>('studio');
+
+  // The PWA shell only registers where the browser allows it (HTTPS or
+  // localhost). Over plain-HTTP LAN it silently no-ops and the app still works.
+  useEffect(() => {
+    registerServiceWorker().then((result) => {
+      if (result === 'failed') console.warn('DeckForge: service worker registration failed');
+    });
+  }, []);
 
   return (
     <DeviceContext.Provider value={deviceState}>
       <TemplateContext.Provider value={templateState}>
         <div style={{
-          width: '100vw',
-          height: '100vh',
+          width: '100%',
+          height: '100dvh',
           backgroundColor: '#0a0a12',
           display: 'flex',
           flexDirection: 'column',
@@ -40,26 +50,32 @@ export const App: React.FC = () => {
           padding: 0,
           boxSizing: 'border-box',
           overflow: 'hidden',
-          position: 'relative'
+          position: 'relative',
+          minHeight: 0,
         }}>
-          {/* Global Quick Switcher Bar (Web & Secondary Tablet Mode) */}
+          {/* Global Quick Switcher. Always an inline row rather than a
+              floating overlay: floating it over the studio's own top bar
+              collided with the profile/Steam readout at every width the layout
+              is used at, since both want the top-right corner. */}
           <div style={{
-            position: 'absolute',
-            top: '8px',
-            right: '16px',
+            position: 'relative',
             zIndex: 10001,
             display: 'flex',
-            gap: '8px',
+            justifyContent: 'flex-end',
+            width: '100%',
+            padding: isCompact ? '4px 8px 0' : '4px 16px 0',
+            flexShrink: 0,
+            backgroundColor: '#0a0a12',
           }}>
             <button
               onClick={() => setCurrentView(currentView === 'launch' ? 'studio' : 'launch')}
               style={{
-                padding: '6px 12px',
+                padding: isCompact ? '10px 14px' : '6px 12px',
                 backgroundColor: 'rgba(26, 26, 46, 0.9)',
                 color: '#e94560',
                 border: '1px solid #3d3d5c',
                 borderRadius: '6px',
-                fontSize: '11px',
+                fontSize: isCompact ? '12px' : '11px',
                 fontWeight: 700,
                 cursor: 'pointer',
                 backdropFilter: 'blur(8px)',
@@ -70,13 +86,16 @@ export const App: React.FC = () => {
             </button>
           </div>
 
-          {/* Main FullStudio View container constrained to Steam Deck ratio */}
+          {/* Main view. The Deck gets its native 1280x800 box; phones and
+              tablets fill the viewport instead of being letterboxed. */}
           <div style={{
             width: '100%',
-            height: '100%',
-            maxWidth: '1280px',
-            maxHeight: '800px',
-            boxShadow: '0 0 50px rgba(0, 0, 0, 0.8)',
+            height: undefined,
+            flex: 1,
+            minHeight: 0,
+            maxWidth: isCompact ? '100%' : '1280px',
+            maxHeight: isCompact ? '100%' : '800px',
+            boxShadow: isCompact ? 'none' : '0 0 50px rgba(0, 0, 0, 0.8)',
             position: 'relative',
             backgroundColor: '#161626',
           }}>

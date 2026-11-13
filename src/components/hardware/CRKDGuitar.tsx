@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { fitSvgStyle } from '../../utils/svgFit';
 
 interface CRKDGuitarProps {
   activeInputs: Map<string, number>;
@@ -43,7 +44,7 @@ export const CRKDGuitar: React.FC<CRKDGuitarProps> = ({
   const tiltValue = getValue('TILT');
 
   const svgStyle = useMemo(
-    () => ({ width: 400 * scale, height: 700 * scale }),
+    () => fitSvgStyle(400, 700, scale),
     [scale],
   );
 

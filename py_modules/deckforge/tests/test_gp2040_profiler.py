@@ -117,7 +117,7 @@ def test_generate_clone_hero_template():
     tpl = generate_gp2040_template(prof, target_game="clone_hero")
     assert "Clone Hero" in tpl.title
     assert tpl.controller_type == "xbox360"
-    binding_names = [b["name"] for b in tpl.group_source_bindings]
+    binding_names = [b["label"] for b in tpl.bindings()]
     assert "Green Fret" in binding_names
     assert "Strum Up" in binding_names
     assert "Whammy Bar" in binding_names
@@ -128,4 +128,4 @@ def test_generate_yarg_template():
     prof = GP2040GuitarProfile(is_xinput_mode=False)
     tpl = generate_gp2040_template(prof, target_game="yarg")
     assert "Yarg" in tpl.title
-    assert tpl.controller_type == "generic"
+    assert tpl.controller_type == "neptune"

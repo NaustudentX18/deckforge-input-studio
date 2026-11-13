@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { fitSvgStyle } from '../../utils/svgFit';
 
 interface GuitarControllerProps {
   activeInputs: Map<string, number>;
@@ -38,7 +39,7 @@ const GuitarController: React.FC<GuitarControllerProps> = ({
   const tiltValue = activeInputs.get('TILT') ?? 0;
 
   const svgStyle = useMemo(
-    () => ({ width: 400 * scale, height: 700 * scale }),
+    () => fitSvgStyle(400, 700, scale),
     [scale],
   );
 

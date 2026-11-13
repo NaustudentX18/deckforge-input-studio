@@ -230,6 +230,13 @@ def auto_detect_gp2040(
     return None
 
 
+def _legacy_to_binding(binding: dict[str, Any]) -> dict[str, Any]:
+    """Convert a profiler binding dict to the studio's binding shape."""
+    from .vdf_manager import _normalise_legacy_binding
+
+    return _normalise_legacy_binding(binding)
+
+
 def generate_gp2040_template(
     profile: Optional[GP2040GuitarProfile] = None,
     target_game: str = "clone_hero",
@@ -312,11 +319,26 @@ def generate_gp2040_template(
         },
     ]
 
+    studio_bindings = [
+        _legacy_to_binding({
+            "name": b["name"],
+            "input": b["source"],
+            "output": b["target"],
+            "activator": b["activator"],
+        })
+        for b in bindings
+    ]
+
     return VDFTemplate(
         version=3,
         title=f"DeckForge — GP2040-CE {title_suffix}",
         description=f"Zero-latency GP2040-CE / RP2040 custom guitar profile optimized for {title_suffix}.",
         creator="DeckForge Input Studio",
-        controller_type="xbox360" if prof.is_xinput_mode else "generic",
-        group_source_bindings=bindings,
+        controller_type="xbox360" if prof.is_xinput_mode else "neptune",
+        action_sets=[{
+            "id": "default_set",
+            "name": "Default",
+            "layers": [],
+            "bindings": studio_bindings,
+        }],
     )

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { fitSvgStyle } from '../../utils/svgFit';
 
 interface SteamDeckGamepadProps {
   activeInputs: Map<string, number>;
@@ -20,7 +21,7 @@ export const SteamDeckGamepad: React.FC<SteamDeckGamepadProps> = ({
   const isSelected = (code: string) => selectedInput === code;
 
   const svgStyle = useMemo(
-    () => ({ width: 800 * scale, height: 500 * scale }),
+    () => fitSvgStyle(800, 500, scale),
     [scale],
   );
 

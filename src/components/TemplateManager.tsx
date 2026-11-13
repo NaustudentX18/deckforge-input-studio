@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { VDFTemplate, SteamGame } from '../types';
+import { useViewport, useIsTouch, TOUCH_TARGET } from '../hooks/useResponsive';
 
 interface TemplateManagerProps {
   templates: VDFTemplate[];
@@ -32,6 +33,8 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
   onImportTemplate,
   onAssignGame,
 }) => {
+  const { isCompact } = useViewport();
+  const isTouch = useIsTouch();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'base' | 'user' | 'local'>('all');
   const [isCreating, setIsCreating] = useState(false);
@@ -132,44 +135,71 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
     }}>
       {/* Top Header Controls */}
       <div style={{
-        padding: '16px',
+        padding: isCompact ? '10px' : '16px',
         backgroundColor: '#1a1a2e',
         borderBottom: '1px solid #2d2d44',
         display: 'flex',
+        flexDirection: isCompact ? 'column' : 'row',
         flexWrap: 'wrap',
-        alignItems: 'center',
+        alignItems: isCompact ? 'stretch' : 'center',
         justifyContent: 'space-between',
-        gap: '12px'
+        gap: isCompact ? '8px' : '12px'
       }}>
         {/* Search & Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '300px' }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: isCompact ? 'column' : 'row',
+          alignItems: isCompact ? 'stretch' : 'center',
+          gap: isCompact ? '8px' : '12px',
+          flex: 1,
+          minWidth: isCompact ? 0 : '300px',
+          width: isCompact ? '100%' : undefined,
+        }}>
           <input
             type="text"
             placeholder="Search templates..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              padding: '8px 14px',
+              padding: isCompact ? '10px 12px' : '8px 14px',
               backgroundColor: '#121220',
               border: '1px solid #33334d',
               borderRadius: '6px',
               color: '#eee',
-              fontSize: '13px',
-              width: '260px'
+              // Under 16px, iOS zooms the viewport on focus.
+              fontSize: isTouch ? '16px' : '13px',
+              width: isCompact ? '100%' : '260px',
+              minHeight: isCompact ? TOUCH_TARGET : undefined,
             }}
           />
-          <div style={{ display: 'flex', backgroundColor: '#121220', borderRadius: '6px', padding: '2px', border: '1px solid #2a2a3e' }}>
+          <div style={{
+            display: 'flex',
+            backgroundColor: '#121220',
+            borderRadius: '6px',
+            padding: '2px',
+            border: '1px solid #2a2a3e',
+            flexWrap: 'nowrap',
+            // Its own full-width row on a phone: sharing a line with the action
+            // buttons squeezed the labels out of view.
+            flex: isCompact ? '1 1 100%' : undefined,
+            width: isCompact ? '100%' : undefined,
+          }}>
             {(['all', 'base', 'user', 'local'] as const).map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 style={{
-                  padding: '6px 12px',
+                  padding: isCompact ? '10px 2px' : '6px 12px',
+                  minHeight: isCompact ? TOUCH_TARGET : undefined,
+                  flex: isCompact ? '1 1 0' : undefined,
+                  fontSize: isCompact ? '11px' : undefined,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                   backgroundColor: selectedCategory === cat ? '#e94560' : 'transparent',
                   color: selectedCategory === cat ? '#fff' : '#a0a0b0',
                   border: 'none',
                   borderRadius: '4px',
-                  fontSize: '12px',
                   fontWeight: 600,
                   cursor: 'pointer',
                   textTransform: 'capitalize'
@@ -182,7 +212,12 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{
+          display: 'flex',
+          gap: isCompact ? '6px' : '10px',
+          width: isCompact ? '100%' : undefined,
+          flexWrap: isCompact ? 'wrap' : 'nowrap',
+        }}>
           <input
             type="file"
             ref={fileInputRef}
@@ -231,9 +266,13 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
             backgroundColor: '#1f1f33',
             border: '1px solid #e94560',
             borderRadius: '8px',
-            padding: '20px',
+            padding: isCompact ? '14px' : '20px',
             marginBottom: '24px',
-            maxWidth: '600px'
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: isCompact ? '70vh' : undefined,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
           }}>
             <h3 style={{ margin: '0 0 16px', color: '#fff', fontSize: '16px' }}>Create New VDF Template</h3>
             <form onSubmit={handleCreateNew} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

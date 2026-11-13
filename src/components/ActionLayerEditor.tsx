@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ActionSet, ActionSetLayer, LayerActivationTrigger } from '../types';
+import { ActionSet, ActionSetLayer } from '../types';
+import { LayerActivationTrigger } from '../utils/mapping';
 
 interface ActionLayerEditorProps {
   actionSets: ActionSet[];

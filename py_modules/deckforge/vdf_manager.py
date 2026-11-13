@@ -294,12 +294,26 @@ def calculate_shortcut_id_64(exe: str, app_name: str) -> int:
 # SteamPathResolver
 # ===================================================================
 
-_DEFAULT_STEAM_PATHS = [
-    Path.home() / ".local" / "share" / "Steam",
-    Path.home() / ".steam" / "steam",
-    Path.home() / ".steam" / "root",
-    Path("/usr/share/steam"),
-]
+def _candidate_steam_roots() -> list[Path]:
+    """Steam install roots, in priority order.
+
+    Built per call rather than at import time: Decky may import this module
+    before ``HOME`` reflects the real user, and a module-level ``Path.home()``
+    would freeze the wrong answer for the whole process.
+    """
+    roots = [
+        Path.home() / ".local" / "share" / "Steam",
+        Path.home() / ".steam" / "steam",
+        Path.home() / ".steam" / "root",
+    ]
+    # The plugin normally runs as the Steam user; HOME can still be root's.
+    for home in ("/home/deck",):
+        roots.append(Path(home) / ".local" / "share" / "Steam")
+    roots.append(Path("/usr/share/steam"))
+    return roots
+
+
+_DEFAULT_STEAM_PATHS = _candidate_steam_roots()
 
 
 class SteamPathResolver:
@@ -311,11 +325,12 @@ class SteamPathResolver:
     @staticmethod
     def _find_steam_root() -> Path:
         """Find the Steam installation directory."""
-        for candidate in _DEFAULT_STEAM_PATHS:
+        candidates = _candidate_steam_roots()
+        for candidate in candidates:
             if candidate.is_dir():
                 return candidate
         # Fallback
-        return _DEFAULT_STEAM_PATHS[0]
+        return candidates[0]
 
     @property
     def userdata_dir(self) -> Path:
@@ -335,7 +350,15 @@ class SteamPathResolver:
         return self.steam_root / "controller_base" / "templates"
 
     def user_template_dir(self, user_id: str) -> Path:
-        return self.userdata_dir / user_id / "config" / "controller_configs" / "templates"
+        """Where Steam actually looks for user-visible template files.
+
+        Measured on SteamOS 20261023.100: ``userdata/<id>/config/controller_configs``
+        does not exist, and neither does ``userdata/<id>/241100/remote``.  Steam
+        loads templates from ``controller_base/templates`` (shared, writable by
+        the Steam user) and per-game configs from
+        ``steamapps/common/Steam Controller Configs/<id>/config``.
+        """
+        return self.controller_base_templates_dir()
 
     def user_config_dir(self, user_id: str) -> Path:
         return self.userdata_dir / user_id / "config"
@@ -350,9 +373,17 @@ class SteamPathResolver:
             return candidate
         return self.steam_root / "config" / "libraryfolders.vdf"
 
+    def configset_path(self, user_id: str, controller_type: str = "neptune") -> Path:
+        """The ``configset`` file mapping app ids to templates for a controller.
+
+        Steam writes one per controller schema, e.g.
+        ``configset_controller_neptune.vdf`` and ``configset_45e-28e-428f6858.vdf``.
+        """
+        schema = "controller_" + controller_type.replace("controller_", "")
+        return self.steam_controller_configs_dir(user_id) / f"configset_{schema}.vdf"
+
     def configset_neptune_path(self, user_id: str) -> Path:
-        return (self.userdata_dir / user_id / "config" /
-                "controller_configs" / "apps" / "configset_controller_neptune.vdf")
+        return self.configset_path(user_id, "neptune")
 
     def steam_controller_configs_dir(self, user_id: str) -> Path:
         """Steam Controller Configs directory: ~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/"""
@@ -367,128 +398,157 @@ class SteamPathResolver:
 
 
 # ===================================================================
-# VDFTemplate dataclass
+# VDFTemplate
 # ===================================================================
 
 @dataclass
 class VDFTemplate:
-    """Represents a Steam Input controller configuration template."""
+    """A DeckForge input profile and its compiled Steam Input config.
+
+    The JSON form is the one the studio frontend edits (``metadata`` /
+    ``actionSets``); the VDF form is produced by :mod:`deckforge.steam_compiler`
+    against Valve's shipped skeleton.  The two are not structurally similar and
+    are not meant to be -- see the module docstrings.
+    """
     version: int = 3
     title: str = ""
     description: str = ""
     creator: str = ""
-    controller_type: str = "neptune"  # neptune / generic / xbox360
+    controller_type: str = "neptune"
     timestamp: int = 0
-    group_source_bindings: list[dict[str, Any]] = field(default_factory=list)
-    preset_id: int = 0
+    name: str = ""
+    device_blueprint_id: str = "steam_deck"
+    tags: list[str] = field(default_factory=list)
     action_sets: list[dict[str, Any]] = field(default_factory=list)
-    action_layers: list[dict[str, Any]] = field(default_factory=list)
+    virtual_menus: list[dict[str, Any]] = field(default_factory=list)
+    macros: list[dict[str, Any]] = field(default_factory=list)
+    axis_calibrations: list[dict[str, Any]] = field(default_factory=list)
+    turbo_configs: dict[str, Any] = field(default_factory=dict)
+    created_at: str = ""
+    updated_at: str = ""
+    # Set when the template came from an existing Steam file; keeps unsupported
+    # parts of that file intact instead of dropping them on the first save.
     raw_vdf: Optional[dict[str, Any]] = field(default=None, repr=False)
 
+    def __post_init__(self) -> None:
+        # Single source of truth: the schema written into the VDF, the skeleton
+        # used to compile it, and the configset file Steam reads must agree.
+        from .steam_compiler import canonical_controller_type
+
+        self.controller_type = canonical_controller_type(self.controller_type)
+
+    # ---- identity ----
+
+    def safe_name(self) -> str:
+        """Filename stem for this template."""
+        stem = re.sub(r'[^\w\-]', '_', (self.name or self.title).lower()).strip('_')
+        return stem or f"template_{int(time.time())}"
+
+    # ---- bindings ----
+
+    def bindings(self) -> list[dict[str, Any]]:
+        """Flatten every action set and layer into one binding list."""
+        out: list[dict[str, Any]] = []
+        for action_set in self.action_sets:
+            if not isinstance(action_set, dict):
+                continue
+            for binding in action_set.get("bindings") or []:
+                if isinstance(binding, dict):
+                    out.append(binding)
+            for layer in action_set.get("layers") or []:
+                if not isinstance(layer, dict):
+                    continue
+                for binding in layer.get("bindings") or []:
+                    if isinstance(binding, dict):
+                        out.append(binding)
+        return out
+
+    # ---- JSON ----
+
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to the frontend's ``VDFTemplate`` shape."""
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         return {
-            "version": self.version,
+            "metadata": {
+                "name": self.safe_name(),
+                "title": self.title,
+                "description": self.description,
+                "author": self.creator,
+                "createdAt": self.created_at or now,
+                "updatedAt": self.updated_at or now,
+                "version": f"{self.version}.0.0",
+                "deviceBlueprintId": self.device_blueprint_id,
+                "tags": self.tags,
+            },
+            "actionSets": self.action_sets,
+            "virtualMenus": self.virtual_menus,
+            "macros": self.macros,
+            "axisCalibrations": self.axis_calibrations,
+            "turboConfigs": self.turbo_configs,
+            # Not used by the frontend, but keeps the Steam-facing identity
+            # available to API clients and the compiler.
             "title": self.title,
             "description": self.description,
             "creator": self.creator,
             "controller_type": self.controller_type,
-            "timestamp": self.timestamp,
-            "group_source_bindings": self.group_source_bindings,
-            "preset_id": self.preset_id,
-            "action_sets": self.action_sets,
-            "action_layers": self.action_layers,
+            "version": self.version,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "VDFTemplate":
+        """Build from either the frontend shape or a flat legacy dict."""
+        meta = data.get("metadata")
+        if isinstance(meta, dict):
+            return cls(
+                version=_int_version(meta.get("version", data.get("version"))),
+                title=str(meta.get("title") or data.get("title") or ""),
+                description=str(meta.get("description") or data.get("description") or ""),
+                creator=str(meta.get("author") or data.get("creator") or "DeckForge"),
+                controller_type=str(
+                    data.get("controller_type") or "neptune"
+                ),
+                name=str(meta.get("name") or ""),
+                device_blueprint_id=str(meta.get("deviceBlueprintId") or "steam_deck"),
+                tags=list(meta.get("tags") or []),
+                created_at=str(meta.get("createdAt") or ""),
+                updated_at=str(meta.get("updatedAt") or ""),
+                action_sets=list(data.get("actionSets") or []),
+                virtual_menus=list(data.get("virtualMenus") or []),
+                macros=list(data.get("macros") or []),
+                axis_calibrations=list(data.get("axisCalibrations") or []),
+                turbo_configs=dict(data.get("turboConfigs") or {}),
+            )
+
+        # Legacy flat shape: bindings listed directly under action_sets or
+        # group_source_bindings.
+        action_sets = list(data.get("action_sets") or [])
+        if not action_sets and data.get("group_source_bindings"):
+            action_sets = [{
+                "id": "default_set",
+                "name": "Default",
+                "bindings": [
+                    _normalise_legacy_binding(b)
+                    for b in data["group_source_bindings"]
+                ],
+                "layers": [],
+            }]
         return cls(
-            version=int(data.get("version", 3)),
-            title=data.get("title", ""),
-            description=data.get("description", ""),
-            creator=data.get("creator", ""),
-            controller_type=data.get("controller_type", "neptune"),
-            timestamp=int(data.get("timestamp", 0)),
-            group_source_bindings=data.get("group_source_bindings", []),
-            preset_id=int(data.get("preset_id", 0)),
-            action_sets=data.get("action_sets", []),
-            action_layers=data.get("action_layers", []),
-        )
-
-    def to_vdf_dict(self) -> dict[str, Any]:
-        """Convert to a VDF-serializable dict structure."""
-        if self.raw_vdf:
-            return dict(self.raw_vdf)
-
-        preset: dict[str, Any] = {
-            "id": str(self.preset_id),
-            "name": self.title,
-        }
-
-        # Build group_source_bindings block
-        if self.group_source_bindings:
-            gsb: dict[str, Any] = {}
-            for i, binding in enumerate(self.group_source_bindings):
-                gsb[str(i)] = binding
-            preset["group_source_bindings"] = gsb
-
-        controller_config: dict[str, Any] = {
-            "version": str(self.version),
-            "revision": str(self.timestamp),
-            "title": self.title,
-            "description": self.description,
-            "creator": self.creator,
-            "controller_type": self.controller_type,
-            "Timestamp": str(self.timestamp or int(time.time())),
-        }
-
-        if self.action_sets:
-            for i, action_set in enumerate(self.action_sets):
-                controller_config[f"action_set_{i}"] = action_set
-
-        if self.action_layers:
-            for i, layer in enumerate(self.action_layers):
-                controller_config[f"action_layer_{i}"] = layer
-
-        preset_block: dict[str, Any] = {"preset": preset}
-        controller_config["group"] = preset_block
-
-        return {"controller_mappings": controller_config}
-
-    @classmethod
-    def from_vdf_dict(cls, data: dict[str, Any]) -> "VDFTemplate":
-        """Parse a VDFTemplate from a parsed VDF dict."""
-        cm = data.get("controller_mappings", data)
-
-        # Extract group_source_bindings from nested preset
-        gsb: list[dict[str, Any]] = []
-        group = cm.get("group", {})
-        preset_data = group.get("preset", {}) if isinstance(group, dict) else {}
-        if isinstance(preset_data, dict):
-            gsb_block = preset_data.get("group_source_bindings", {})
-            if isinstance(gsb_block, dict):
-                gsb = list(gsb_block.values())
-
-        # Extract action sets
-        action_sets: list[dict[str, Any]] = []
-        action_layers: list[dict[str, Any]] = []
-        for key, val in cm.items():
-            if key.startswith("action_set_") and isinstance(val, dict):
-                action_sets.append(val)
-            elif key.startswith("action_layer_") and isinstance(val, dict):
-                action_layers.append(val)
-
-        return cls(
-            version=int(cm.get("version", 3)),
-            title=cm.get("title", ""),
-            description=cm.get("description", ""),
-            creator=cm.get("creator", ""),
-            controller_type=cm.get("controller_type", "neptune"),
-            timestamp=int(cm.get("Timestamp", cm.get("revision", 0))),
-            group_source_bindings=gsb,
-            preset_id=int(preset_data.get("id", 0)) if isinstance(preset_data, dict) else 0,
+            version=_int_version(data.get("version", 3)),
+            title=str(data.get("title") or ""),
+            description=str(data.get("description") or ""),
+            creator=str(data.get("creator") or "DeckForge"),
+            controller_type=str(data.get("controller_type") or "neptune"),
+            timestamp=int(data.get("timestamp") or 0),
+            name=str(data.get("name") or ""),
+            device_blueprint_id=str(data.get("device_blueprint_id") or "steam_deck"),
+            tags=list(data.get("tags") or []),
             action_sets=action_sets,
-            action_layers=action_layers,
-            raw_vdf=data,
+            virtual_menus=list(data.get("virtual_menus") or []),
+            macros=list(data.get("macros") or []),
+            axis_calibrations=list(data.get("axis_calibrations") or []),
+            turbo_configs=dict(data.get("turbo_configs") or {}),
+            created_at=str(data.get("created_at") or ""),
+            updated_at=str(data.get("updated_at") or ""),
         )
 
     def to_json(self) -> str:
@@ -497,6 +557,111 @@ class VDFTemplate:
     @classmethod
     def from_json(cls, text: str) -> "VDFTemplate":
         return cls.from_dict(json.loads(text))
+
+    # ---- VDF ----
+
+    def compile(self) -> "CompiledTemplate":
+        """Compile the bindings into a Steam-loadable configuration."""
+        from .steam_compiler import compile_bindings
+
+        return compile_bindings(
+            self.bindings() or self._raw_bindings(),
+            title=self.title or self.safe_name(),
+            description=self.description,
+            controller_type=self.controller_type,
+            creator=self.creator or "DeckForge",
+        )
+
+    def _raw_bindings(self) -> list[dict[str, Any]]:
+        """Recover editable bindings from a parsed Steam config, if any."""
+        if not self.raw_vdf:
+            return []
+        from .steam_compiler import extract_bindings
+
+        body = self.raw_vdf.get("controller_mappings", self.raw_vdf)
+        if not isinstance(body, dict):
+            return []
+        return extract_bindings(body, self.controller_type)
+
+    def to_vdf_text(self) -> str:
+        """Return the compiled VDF document as text."""
+        return self.compile().vdf_text
+
+    def to_vdf_dict(self) -> dict[str, Any]:
+        """Return the compiled VDF document as a dict."""
+        return parse_vdf(self.to_vdf_text())
+
+    @classmethod
+    def from_vdf_dict(cls, data: dict[str, Any]) -> "VDFTemplate":
+        """Parse a template from a parsed Steam VDF document."""
+        cm = data.get("controller_mappings", data)
+        if not isinstance(cm, dict):
+            cm = {}
+
+        localization = cm.get("localization")
+        title = str(cm.get("title") or "")
+        description = str(cm.get("description") or "")
+        if isinstance(localization, dict):
+            english = localization.get("english")
+            if isinstance(english, dict):
+                title = str(english.get("title") or title)
+                description = str(english.get("description") or description)
+
+        from .steam_compiler import extract_bindings
+
+        controller_type = str(cm.get("controller_type") or "neptune")
+        controller_type = controller_type.replace("controller_", "") or "neptune"
+
+        bindings = extract_bindings(cm, controller_type)
+        action_sets = []
+        if bindings:
+            action_sets = [{
+                "id": "default_set",
+                "name": "Default",
+                "bindings": bindings,
+                "layers": [],
+            }]
+
+        return cls(
+            version=_int_version(cm.get("version", 3)),
+            title=title,
+            description=description,
+            creator=str(cm.get("creator") or "DeckForge"),
+            controller_type=controller_type,
+            timestamp=int(cm.get("Timestamp") or cm.get("revision") or 0),
+            action_sets=action_sets,
+            raw_vdf=data,
+        )
+
+
+def _int_version(value: Any) -> int:
+    """Coerce a version field (``"3"``, ``"1.0.0"``, ``3``) to an int."""
+    if isinstance(value, int):
+        return value
+    text = str(value or "3").split(".")[0]
+    try:
+        return int(text)
+    except ValueError:
+        return 3
+
+
+def _normalise_legacy_binding(binding: dict[str, Any]) -> dict[str, Any]:
+    """Convert a legacy ``{"input","output"}`` dict into the current shape."""
+    if "source" in binding or "sourceCode" in binding:
+        return binding
+    from .steam_compiler import _split_legacy_output
+
+    output = binding.get("output") or binding.get("target") or ""
+    source = binding.get("input") or binding.get("source") or ""
+    return {
+        "id": str(binding.get("id") or f"bind_{abs(hash((source, str(output)))) % 10**8}"),
+        "label": str(binding.get("name") or f"{source} -> {output}"),
+        "sourceCode": str(source),
+        "source": str(source),
+        "output": _split_legacy_output(output) if isinstance(output, str) else output,
+        "activator": {"type": str(binding.get("activator") or "RegularPress")},
+        "enabled": True,
+    }
 
 
 # ===================================================================
@@ -620,6 +785,9 @@ class TemplateManager:
         self.steam = steam or SteamPathResolver()
         self.local_dir = local_dir or _LOCAL_TEMPLATE_DIR
         self.local_dir.mkdir(parents=True, exist_ok=True)
+        # Populated by save_template(); the API surfaces it so the UI can show
+        # which bindings Steam accepted and which it has no slot for.
+        self.last_compile: Optional[Any] = None
 
     # ---- listing ----
 
@@ -639,6 +807,56 @@ class TemplateManager:
     def list_local_templates(self) -> list[dict[str, Any]]:
         """List templates in the DeckForge local vault."""
         return self._list_templates_in(self.local_dir, source="local")
+
+    def _is_own_published(self, path: Path) -> bool:
+        """True if *path* is a Steam copy of a template in the local vault."""
+        try:
+            meta = self.local_dir / f"{path.stem}.json"
+        except Exception:
+            return False
+        return meta.is_file()
+
+    def list_templates(self) -> list[dict[str, Any]]:
+        """List every template as the studio's ``VDFTemplate`` JSON shape.
+
+        Steam's own base templates are included (they are readable and useful as
+        starting points) but tagged ``base``; vault templates are tagged
+        ``local``.  Steam base files are never modified.
+        """
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        for item in self.list_local_templates():
+            try:
+                tpl = self.load_template(item["path"])
+            except Exception:
+                continue
+            payload = tpl.to_dict()
+            payload["metadata"]["tags"] = sorted(set(payload["metadata"]["tags"]) | {"local"})
+            results.append(payload)
+            seen.add(payload["metadata"]["name"])
+
+        for item in self.list_base_templates():
+            stem = item["name"]
+            if stem in seen:
+                continue
+            # DeckForge publishes into the same directory Steam reads from, so
+            # its own files come back as "base" templates. Skip them: the vault
+            # entry above is the editable one, and a second read-only copy with
+            # the same title is just confusing.
+            if item["path"] and self._is_own_published(Path(item["path"])):
+                continue
+            try:
+                tpl = self.load_template(item["path"])
+            except Exception:
+                continue
+            payload = tpl.to_dict()
+            payload["metadata"]["name"] = stem
+            payload["metadata"]["tags"] = ["base"]
+            results.append(payload)
+            seen.add(stem)
+
+        return results
 
     def list_all_templates(self) -> list[dict[str, Any]]:
         """List templates from all sources."""
@@ -707,62 +925,103 @@ class TemplateManager:
             return VDFTemplate.from_vdf_dict(data)
 
     def save_template(self, template: VDFTemplate) -> Path:
-        """Save a VDFTemplate to the local vault and atomically synchronize to all
-        locations indexed by SteamOS Gaming Mode:
-        1. Local master vault (~/.config/deckforge/templates/)
-        2. Steam user template directory (~/.local/share/Steam/userdata/<USER_ID>/config/controller_configs/templates/)
-        3. Steam Controller Configs directory (~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/)
-        4. Steam Cloud AppID 241100 remote directory (~/.local/share/Steam/userdata/<USER_ID>/241100/remote/)
+        """Save a template to the DeckForge vault and publish it to Steam.
 
-        Returns the local vault path.
+        Writes:
+        1. ``~/.config/deckforge/templates/<name>.vdf`` + ``.json`` (the vault)
+        2. ``<steam>/controller_base/templates/<name>.vdf`` -- where SteamOS
+           20261023.100 actually enumerates templates for the configurator.
+           ``controller_base`` is writable by the Steam user; the
+           ``userdata/<id>/config/controller_configs/templates`` and
+           ``userdata/<id>/241100/remote`` paths do not exist on this build.
+
+        Returns the vault path.
         """
         VDFValidator.validate_strict(template)
+        compiled = template.compile()
+        template.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-        safe_name = re.sub(r'[^\w\-]', '_', template.title.lower())
-        if not safe_name:
-            safe_name = f"template_{int(time.time())}"
-
-        # 1. Write to local vault (.vdf and .json)
+        safe_name = template.safe_name()
         local_vdf_path = self.local_dir / f"{safe_name}.vdf"
         local_json_path = self.local_dir / f"{safe_name}.json"
-
-        vdf_text = serialize_vdf(template.to_vdf_dict())
-        _atomic_write(local_vdf_path, vdf_text)
+        _atomic_write(local_vdf_path, compiled.vdf_text)
         _atomic_write(local_json_path, template.to_json())
 
-        # 2. Sync to all Steam user ID directories
-        user_ids = self.steam.enumerate_user_ids()
-        for uid in user_ids:
-            # A. User templates: userdata/<uid>/config/controller_configs/templates/
-            user_tpl_dir = self.steam.user_template_dir(uid)
-            try:
-                _atomic_write(user_tpl_dir / f"{safe_name}.vdf", vdf_text)
-            except OSError as exc:
-                logger.debug("Cannot write to user templates for %s: %s", uid, exc)
+        self.last_compile = compiled
 
-            # B. Controller Configs: steamapps/common/Steam Controller Configs/<uid>/config/
-            common_cfg_dir = self.steam.steam_controller_configs_dir(uid)
-            try:
-                _atomic_write(common_cfg_dir / f"{safe_name}.vdf", vdf_text)
-            except OSError as exc:
-                logger.debug("Cannot write to common controller configs for %s: %s", uid, exc)
-
-            # C. Steam Cloud remote sync: userdata/<uid>/241100/remote/
-            cloud_dir = self.steam.cloud_remote_dir(uid)
-            try:
-                _atomic_write(cloud_dir / f"{safe_name}.vdf", vdf_text)
-            except OSError as exc:
-                logger.debug("Cannot write to Steam Cloud remote for %s: %s", uid, exc)
-
-        logger.info("Saved template '%s' to %s and synced to Steam directories", template.title, local_vdf_path)
+        publish_errors = self.sync_to_steam(template, vdf_text=compiled.vdf_text)
+        if publish_errors:
+            logger.warning(
+                "Template '%s' saved to vault, but Steam sync failed: %s",
+                template.title, "; ".join(publish_errors),
+            )
+        else:
+            logger.info(
+                "Saved template '%s' (%d bindings applied, %d skipped) to %s",
+                template.title, len(compiled.applied), len(compiled.skipped),
+                local_vdf_path,
+            )
         return local_vdf_path
 
+    def sync_to_steam(self, template: VDFTemplate,
+                      vdf_text: Optional[str] = None) -> list[str]:
+        """Publish *template* into Steam's template directory.
+
+        Returns a list of human-readable errors; empty means Steam has it.
+        """
+        text = vdf_text if vdf_text is not None else template.compile().vdf_text
+        safe_name = template.safe_name()
+        errors: list[str] = []
+
+        target_dir = self.steam.controller_base_templates_dir()
+        try:
+            _atomic_write(target_dir / f"{safe_name}.vdf", text)
+        except OSError as exc:
+            errors.append(f"{target_dir}: {exc}")
+
+        # The per-user copy is what the "Steam Controller Configs" UI lists for
+        # games that already have a config; keep it in step when it exists.
+        for uid in self.steam.enumerate_user_ids():
+            user_dir = self.steam.steam_controller_configs_dir(uid)
+            if not user_dir.is_dir():
+                continue
+            try:
+                _atomic_write(user_dir / f"{safe_name}.vdf", text)
+            except OSError as exc:
+                errors.append(f"{user_dir}: {exc}")
+
+        return errors
+
+    def steam_status(self) -> dict[str, Any]:
+        """Describe the Steam install this manager will publish into."""
+        template_dir = self.steam.controller_base_templates_dir()
+        writable = False
+        if template_dir.is_dir():
+            probe = template_dir / ".deckforge_write_probe"
+            try:
+                probe.write_text("", encoding="utf-8")
+                probe.unlink()
+                writable = True
+            except OSError:
+                writable = False
+        return {
+            "steam_root": str(self.steam.steam_root),
+            "steam_root_exists": self.steam.steam_root.is_dir(),
+            "template_dir": str(template_dir),
+            "template_dir_exists": template_dir.is_dir(),
+            "writable": writable,
+            "user_ids": self.steam.enumerate_user_ids(),
+        }
+
     def save_schema_variants(self, template: VDFTemplate, schemas: Optional[list[str]] = None) -> list[Path]:
-        """Generate and save controller schema variants so Steam never hides a template
-        due to controller-type mismatch (e.g. neptune, xbox360, ps4, ps5, generic).
+        """Save one compiled copy per controller schema.
+
+        Each schema needs its own body: the skeleton differs per controller, so
+        the variants are compiled independently rather than re-emitting one
+        document under several names.
         """
         if schemas is None:
-            schemas = ["neptune", "xbox360", "ps4", "ps5", "generic"]
+            schemas = ["neptune", "xbox360"]
 
         saved_paths: list[Path] = []
         base_title = template.title
@@ -770,10 +1029,14 @@ class TemplateManager:
         for schema in schemas:
             variant = VDFTemplate.from_dict(template.to_dict())
             variant.controller_type = schema
-            if schema != template.controller_type:
-                variant.title = f"{base_title} ({schema})"
-            path = self.save_template(variant)
-            saved_paths.append(path)
+            # safe_name() prefers `name`, so a variant that only changes title
+            # would overwrite the base file. Give each variant its own stem.
+            variant.name = f"{template.safe_name()}_{schema}"
+            variant.title = (
+                base_title if schema == template.controller_type
+                else f"{base_title} ({schema})"
+            )
+            saved_paths.append(self.save_template(variant))
 
         return saved_paths
 
@@ -787,7 +1050,7 @@ class TemplateManager:
         return template
 
     def delete_template(self, name: str) -> None:
-        """Delete a template from the local vault, creating a .bak backup first."""
+        """Delete a template from the vault and Steam, backing up the vault copy."""
         safe_name = re.sub(r'[^\w\-]', '_', name.lower())
         for suffix in (".vdf", ".json"):
             path = self.local_dir / f"{safe_name}{suffix}"
@@ -797,13 +1060,22 @@ class TemplateManager:
                 path.unlink()
                 logger.info("Deleted %s (backed up to %s)", path, bak)
 
+        # Keep Steam's directory in step, otherwise a deleted profile stays
+        # selectable in the configurator.
+        published = self.steam.controller_base_templates_dir() / f"{safe_name}.vdf"
+        if published.exists():
+            try:
+                published.unlink()
+                logger.info("Removed published Steam template %s", published)
+            except OSError as exc:
+                logger.warning("Could not remove %s: %s", published, exc)
+
     def export_template(self, name: str, fmt: str = "vdf") -> bytes:
-        """Export a template as VDF text or DeckForge JSON bytes."""
+        """Export a template as compiled Steam VDF or DeckForge JSON bytes."""
         template = self._find_and_load(name)
         if fmt == "deckforge_json":
             return template.to_json().encode("utf-8")
-        else:
-            return serialize_vdf(template.to_vdf_dict()).encode("utf-8")
+        return template.to_vdf_text().encode("utf-8")
 
     def import_template(self, data: bytes, fmt: str = "vdf") -> VDFTemplate:
         """Import a template from bytes, save to local vault, and return it."""
@@ -941,55 +1213,84 @@ class GameAssigner:
         return self.list_steam_games() + self.list_nonsteam_games()
 
     def assign_template_to_game(self, template_name: str, app_id: str,
-                                 template_manager: Optional[TemplateManager] = None) -> None:
-        """Assign a controller template to a game by modifying
-        configset_controller_neptune.vdf in the user's config.
+                                 template_manager: Optional[TemplateManager] = None) -> dict[str, Any]:
+        """Point a game at a template via Steam's configset indirection.
 
-        For Non-Steam shortcuts, binds both the 32-bit ID and 64-bit Big Picture ID.
+        Steam does not embed a config in the configset; it stores
+        ``{"template": "<file>.vdf"}`` and loads that file from
+        ``controller_base/templates``.  So the template must be published first,
+        then referenced by filename.
+
+        Returns a summary of what was written.
         """
         tm = template_manager or TemplateManager(steam=self.steam)
         template = tm._find_and_load(template_name)
         VDFValidator.validate_strict(template)
 
+        # Ensure the referenced file exists before pointing Steam at it.
+        errors = tm.sync_to_steam(template)
+        if errors:
+            raise RuntimeError("Cannot publish template to Steam: " + "; ".join(errors))
+        template_file = f"{template.safe_name()}.vdf"
+
         user_ids = self.steam.enumerate_user_ids()
         if not user_ids:
             raise RuntimeError("No Steam user IDs found")
 
-        # Check if this app_id matches a non-steam game with alternative 32/64 bit IDs
+        # A non-Steam shortcut answers to several ids; bind all of them.
         target_ids = {str(app_id)}
         for game in self.list_nonsteam_games():
-            if str(app_id) in (game.get("app_id"), game.get("shortcut_id_32"), game.get("shortcut_id_64"), game.get("raw_appid")):
-                if game.get("shortcut_id_32"):
-                    target_ids.add(str(game["shortcut_id_32"]))
-                if game.get("shortcut_id_64"):
-                    target_ids.add(str(game["shortcut_id_64"]))
+            if str(app_id) in (
+                game.get("app_id"), game.get("shortcut_id_32"),
+                game.get("shortcut_id_64"), game.get("raw_appid"),
+            ):
+                for key in ("shortcut_id_32", "shortcut_id_64"):
+                    if game.get(key):
+                        target_ids.add(str(game[key]))
 
+        written: list[str] = []
         for uid in user_ids:
-            config_path = self.steam.configset_neptune_path(uid)
+            config_path = self.steam.configset_path(uid, template.controller_type)
             config_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Read existing config or start fresh
             existing: dict[str, Any] = {}
             if config_path.exists():
                 bak = config_path.with_suffix(".vdf.bak")
-                shutil.copy2(str(config_path), str(bak))
                 try:
-                    existing = parse_vdf(config_path.read_text(encoding="utf-8", errors="replace"))
-                except VDFParseError:
+                    shutil.copy2(str(config_path), str(bak))
+                except OSError:
+                    pass
+                try:
+                    existing = parse_vdf(
+                        config_path.read_text(encoding="utf-8", errors="replace")
+                    )
+                except (VDFParseError, OSError):
                     existing = {}
 
-            # Set template for all matching app_ids
-            if "controller_config" not in existing:
-                existing["controller_config"] = {}
+            block = existing.get("controller_config")
+            if not isinstance(block, dict):
+                block = {}
+                existing["controller_config"] = block
 
-            tpl_vdf = template.to_vdf_dict()
             for tid in target_ids:
-                existing["controller_config"][tid] = tpl_vdf
+                entry = block.get(tid)
+                if not isinstance(entry, dict):
+                    entry = {}
+                entry["template"] = template_file
+                block[tid] = entry
 
-            vdf_text = serialize_vdf(existing)
-            _atomic_write(config_path, vdf_text)
-            logger.info("Assigned template '%s' to app targets %s for user %s",
-                        template_name, target_ids, uid)
+            _atomic_write(config_path, serialize_vdf(existing) + "\n")
+            written.append(str(config_path))
+            logger.info(
+                "Bound app targets %s to template file %s for user %s",
+                sorted(target_ids), template_file, uid,
+            )
+
+        return {
+            "template_file": template_file,
+            "app_ids": sorted(target_ids),
+            "configsets": written,
+        }
 
 
 # ===================================================================

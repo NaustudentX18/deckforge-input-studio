@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { VDFTemplate, SteamGame } from '../types';
+import { apiFetch } from '../api/client';
 
 export interface TemplateCategorized {
   base: VDFTemplate[];
@@ -24,7 +25,7 @@ export function useVDFTemplate(initialTemplateName?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:8765/api/templates');
+      const res = await apiFetch('/api/templates');
       if (res.ok) {
         const data = await res.json();
         setTemplates(data);
@@ -49,7 +50,7 @@ export function useVDFTemplate(initialTemplateName?: string) {
 
   const fetchGames = useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:8765/api/games');
+      const res = await apiFetch('/api/games');
       if (res.ok) {
         const data = await res.json();
         setGames(data);
@@ -113,7 +114,7 @@ export function useVDFTemplate(initialTemplateName?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:8765/api/templates/${encodeURIComponent(name)}`);
+      const res = await apiFetch(`/api/templates/${encodeURIComponent(name)}`);
       if (res.ok) {
         const data = await res.json();
         setActiveTemplate(data);
@@ -135,14 +136,26 @@ export function useVDFTemplate(initialTemplateName?: string) {
     const target = templateToSave || activeTemplate;
     if (!target) return false;
 
+    // A template that came from the server already exists on disk: update it in
+    // place with PUT. Anything else (import, clone, brand-new draft) is created
+    // with POST against the collection.
+    const name = target.metadata.name;
+    const isExisting =
+      !!originalTemplate && originalTemplate.metadata.name === name;
+
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:8765/api/templates/${encodeURIComponent(target.metadata.name)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(target),
-      });
+      const res = await apiFetch(
+        isExisting
+          ? `/api/templates/${encodeURIComponent(name)}`
+          : '/api/templates',
+        {
+          method: isExisting ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target),
+        }
+      );
 
       if (res.ok) {
         setIsDirty(false);
@@ -159,7 +172,7 @@ export function useVDFTemplate(initialTemplateName?: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [activeTemplate, fetchTemplates]);
+  }, [activeTemplate, originalTemplate, fetchTemplates]);
 
   const cloneTemplate = useCallback(async (template: VDFTemplate, newName: string) => {
     const cloned: VDFTemplate = {
@@ -180,7 +193,7 @@ export function useVDFTemplate(initialTemplateName?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:8765/api/templates/${encodeURIComponent(name)}`, {
+      const res = await apiFetch(`/api/templates/${encodeURIComponent(name)}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -229,7 +242,7 @@ export function useVDFTemplate(initialTemplateName?: string) {
 
   const assignGameTemplate = useCallback(async (appId: number, templateName: string) => {
     try {
-      const res = await fetch(`http://localhost:8765/api/games/${appId}/assign`, {
+      const res = await apiFetch(`/api/games/${appId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateName }),
@@ -247,10 +260,11 @@ export function useVDFTemplate(initialTemplateName?: string) {
 
   const fetchVDFDiff = useCallback(async (templateName: string) => {
     try {
-      const res = await fetch(`http://localhost:8765/api/templates/${encodeURIComponent(templateName)}/diff`);
+      const res = await apiFetch(`/api/templates/${encodeURIComponent(templateName)}/diff`);
       if (res.ok) {
         return await res.json();
       }
+      console.warn(`No VDF diff available for ${templateName}: ${res.status} ${res.statusText}`);
     } catch (err) {
       console.warn('Failed to fetch diff from backend:', err);
     }
