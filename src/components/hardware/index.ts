@@ -5,3 +5,4 @@ export { default as Fightstick } from './Fightstick';
 export { default as KeyboardMacropad } from './KeyboardMacropad';
 export { default as BlankCanvas } from './BlankCanvas';
 export { default as CRKDGuitar } from './CRKDGuitar';
+export { default as RiffstickGuitar } from './RiffstickGuitar';

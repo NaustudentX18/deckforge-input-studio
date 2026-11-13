@@ -7,6 +7,7 @@ import {
   KeyboardMacropad,
   BlankCanvas,
   CRKDGuitar,
+  RiffstickGuitar,
 } from './hardware';
 import { MappingEditor } from './MappingEditor';
 import { InputMonitor } from './InputMonitor';
@@ -38,6 +39,31 @@ export const FullStudio: React.FC = () => {
   const [selectedInputCode, setSelectedInputCode] = useState<string | null>(null);
   const [activeSetId, setActiveSetId] = useState<string>('default_set');
   const [activeLayerId, setActiveLayerId] = useState<string>('default_layer');
+
+  // Toast Notification state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Remote QR Pairing Modal state
+  const [showQRModal, setShowQRModal] = useState<boolean>(false);
+  const [qrInfo, setQrInfo] = useState<{ remote_url: string; qr_svg: string; primary_ip: string } | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleOpenQR = async () => {
+    setShowQRModal(true);
+    try {
+      const res = await fetch(`http://${window.location.hostname || '127.0.0.1'}:8765/api/system/network-info`);
+      if (res.ok) {
+        const data = await res.json();
+        setQrInfo(data);
+      }
+    } catch (err) {
+      console.debug('Failed to fetch network info:', err);
+    }
+  };
 
   // Input Device Hook
   const {
@@ -147,6 +173,10 @@ export const FullStudio: React.FC = () => {
         return <GuitarController {...commonProps} />;
       case 'crkd_guitar':
         return <CRKDGuitar {...commonProps} />;
+      case 'riffstick':
+      case 'riffstick_guitar':
+      case 'gp2040':
+        return <RiffstickGuitar {...commonProps} />;
       case 'drum_kit':
         return <DrumKit {...commonProps} />;
       case 'fightstick':
@@ -248,6 +278,25 @@ export const FullStudio: React.FC = () => {
 
         {/* Global Template & Save Indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={handleOpenQR}
+            style={{
+              padding: '4px 10px',
+              backgroundColor: '#1f1f33',
+              color: '#00e5ff',
+              border: '1px solid #33334d',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            📱 Remote QR
+          </button>
+
           <span style={{ fontSize: '12px', color: '#a0a0b8' }}>
             Profile: <strong style={{ color: '#fff' }}>{activeTemplate?.metadata.title || 'Default'}</strong>
           </span>
@@ -259,7 +308,10 @@ export const FullStudio: React.FC = () => {
           )}
 
           <button
-            onClick={() => saveTemplate()}
+            onClick={async () => {
+              await saveTemplate();
+              triggerToast(`VDF Template "${activeTemplate?.metadata.title || 'Custom'}" synced to Steam Gaming Mode!`);
+            }}
             disabled={!isDirty}
             style={{
               padding: '4px 14px',
@@ -556,6 +608,117 @@ export const FullStudio: React.FC = () => {
           <span>DeckForge v0.1.0</span>
         </div>
       </div>
+
+      {/* Toast Notification Banner */}
+      {toastMessage && (
+        <div style={{
+          position: 'absolute',
+          bottom: '42px',
+          right: '24px',
+          backgroundColor: '#1e1e30',
+          border: '1px solid #e94560',
+          borderRadius: '6px',
+          padding: '10px 18px',
+          color: '#fff',
+          fontSize: '13px',
+          fontWeight: 600,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <span style={{ color: '#22c55e', fontSize: '16px' }}>✓</span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Remote QR Code Pairing Modal */}
+      {showQRModal && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+        }}>
+          <div style={{
+            width: '440px',
+            backgroundColor: '#181829',
+            border: '1px solid #33334d',
+            borderRadius: '12px',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            boxShadow: '0 12px 48px rgba(0,0,0,0.8)'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0', color: '#fff', fontSize: '18px', fontWeight: 800 }}>
+              Remote Studio Pairing
+            </h3>
+            <p style={{ margin: '0 0 16px 0', color: '#aaa', fontSize: '12px', textAlign: 'center', lineHeight: 1.4 }}>
+              Scan with your phone or tablet camera to open DeckForge Input Studio remotely over Tailscale or Local Wi-Fi.
+            </p>
+
+            {/* QR SVG display */}
+            <div style={{
+              width: '240px',
+              height: '240px',
+              backgroundColor: '#0e0e17',
+              borderRadius: '8px',
+              padding: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid #2d2d44'
+            }}>
+              {qrInfo?.qr_svg ? (
+                <div dangerouslySetInnerHTML={{ __html: qrInfo.qr_svg }} />
+              ) : (
+                <span style={{ color: '#666', fontSize: '12px' }}>Loading QR Code…</span>
+              )}
+            </div>
+
+            {/* Direct URL */}
+            <div style={{
+              marginTop: '16px',
+              padding: '8px 14px',
+              backgroundColor: '#121220',
+              borderRadius: '6px',
+              border: '1px solid #2d2d44',
+              color: '#00e5ff',
+              fontFamily: 'monospace',
+              fontSize: '13px',
+              userSelect: 'text'
+            }}>
+              {qrInfo?.remote_url || 'http://steamdeck:8765/'}
+            </div>
+
+            <button
+              onClick={() => setShowQRModal(false)}
+              style={{
+                marginTop: '20px',
+                padding: '8px 24px',
+                backgroundColor: '#e94560',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

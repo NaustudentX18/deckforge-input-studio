@@ -45,8 +45,22 @@ const DrumKit: React.FC<DrumKitProps> = ({
   onSelectInput,
   scale = 1,
 }) => {
-  const isActive = (code: string) => (activeInputs.get(code) ?? 0) > 0;
-  const velocity = (code: string) => Math.min(1, (activeInputs.get(code) ?? 0) / 127);
+  const getPadVal = (pad: PadDef): number => {
+    return (
+      activeInputs.get(pad.code) ??
+      activeInputs.get(String(pad.midiNote)) ??
+      activeInputs.get(`NOTE_${pad.midiNote}`) ??
+      activeInputs.get(`MIDI_NOTE_${pad.midiNote}`) ??
+      activeInputs.get(`MIDI_${pad.label.toUpperCase().replace(/\s+/g, '_')}`) ??
+      0
+    );
+  };
+
+  const isActive = (pad: PadDef) => getPadVal(pad) > 0;
+  const velocity = (pad: PadDef) => {
+    const v = getPadVal(pad);
+    return v > 1 ? Math.min(1, v / 127) : Math.min(1, v);
+  };
   const isSelected = (code: string) => selectedInput === code;
 
   const svgStyle = useMemo(
@@ -55,8 +69,8 @@ const DrumKit: React.FC<DrumKitProps> = ({
   );
 
   const renderPad = (pad: PadDef) => {
-    const active = isActive(pad.code);
-    const vel = velocity(pad.code);
+    const active = isActive(pad);
+    const vel = velocity(pad);
     const selected = isSelected(pad.code);
     const pulseScale = active ? 1 + vel * 0.06 : 1;
 

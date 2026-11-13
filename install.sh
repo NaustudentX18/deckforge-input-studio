@@ -63,12 +63,32 @@ npm install --legacy-peer-deps
 info "Building frontend bundle …"
 npm run build
 
-# ── Python dependencies ──────────────────────────────────────────────
-info "Installing Python dependencies …"
+# ── Python dependencies (Vendor into py_modules/lib for Decky Loader ABI) ───
+info "Detecting Decky Loader Python runtime …"
+DECKY_PY=""
+if [[ -x "$HOMEBREW_DIR/services/PluginLoader" ]]; then
+    DECKY_PY="$HOMEBREW_DIR/services/PluginLoader"
+elif [[ -x "$HOMEBREW_DIR/environments/plugin_loader/bin/python" ]]; then
+    DECKY_PY="$HOMEBREW_DIR/environments/plugin_loader/bin/python"
+elif [[ -x "$HOMEBREW_DIR/python/bin/python" ]]; then
+    DECKY_PY="$HOMEBREW_DIR/python/bin/python"
+elif command -v python3 &>/dev/null; then
+    DECKY_PY="$(command -v python3)"
+fi
+info "Using Python runtime: ${DECKY_PY:-python3}"
+
+mkdir -p "$INSTALL_DIR/py_modules/lib"
+info "Vendoring Python packages into py_modules/lib …"
+if [[ -n "$DECKY_PY" ]] && "$DECKY_PY" -m pip --version &>/dev/null; then
+    "$DECKY_PY" -m pip install --target "$INSTALL_DIR/py_modules/lib" --upgrade \
+        evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles mido 2>/dev/null || true
+fi
+
+# Fallback: install to user site-packages as backup
 pip install --user --break-system-packages \
-    evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles 2>/dev/null \
+    evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles mido 2>/dev/null \
     || pip install --user \
-    evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles
+    evdev pyudev fastapi "uvicorn[standard]" websockets aiofiles mido 2>/dev/null || true
 
 # ── restart Decky Loader ─────────────────────────────────────────────
 info "Restarting Decky Loader plugin service …"

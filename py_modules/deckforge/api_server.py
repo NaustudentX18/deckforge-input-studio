@@ -33,6 +33,15 @@ from .calibration import (
     WhammyNormalizer,
 )
 from .crkd_profiler import auto_detect_crkd, generate_crkd_template
+from .gp2040_profiler import auto_detect_gp2040, generate_gp2040_template
+from .midi_sniffer import MidiEventStream, list_midi_devices
+from .security import (
+    generate_svg_qr,
+    get_network_interfaces,
+    is_ip_allowed,
+    load_security_settings,
+    save_security_settings,
+)
 from .input_sniffer import (
     DeviceInfo,
     DeviceMonitor,
@@ -66,6 +75,44 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    """Enforce optional 4-digit PIN authentication and Tailscale / LAN subnet restrictions."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    # Local loopback on Steam Deck and test clients are always permitted
+    if client_ip in ("127.0.0.1", "::1", "localhost", "testclient"):
+        return await call_next(request)
+
+    sec = load_security_settings()
+
+    # Subnet guard check (Tailscale + private LAN)
+    if sec.get("subnet_guard_enabled", True):
+        if not is_ip_allowed(client_ip):
+            return Response(
+                content="Forbidden: Client IP not in allowed Tailscale / private LAN subnets",
+                status_code=403,
+            )
+
+    # 4-digit PIN guard check
+    if sec.get("pin_enabled", False) and sec.get("pin"):
+        path = request.url.path
+        if not (
+            path.startswith("/api/security")
+            or path.startswith("/api/system")
+            or path.startswith("/static")
+            or path.startswith("/assets")
+            or path == "/"
+        ):
+            pin_header = request.headers.get("X-DeckForge-PIN") or request.query_params.get("pin")
+            if pin_header != sec.get("pin"):
+                return Response(
+                    content="Unauthorized: Invalid or missing DeckForge PIN",
+                    status_code=401,
+                )
+
+    return await call_next(request)
 
 # Managers / singletons
 template_manager = TemplateManager()
@@ -170,10 +217,11 @@ def _normalize_device_path(path: str) -> str:
 
 @app.get("/api/devices")
 async def list_devices() -> list[dict[str, Any]]:
-    """List all connected evdev input devices with capabilities."""
+    """List all connected evdev and USB-MIDI input devices with capabilities."""
     try:
-        devices = discover_devices()
-        return [dev.to_dict() for dev in devices]
+        devices = [dev.to_dict() for dev in discover_devices()]
+        midi_devices = list_midi_devices()
+        return devices + midi_devices
     except Exception as exc:
         logger.error("Failed to discover devices: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -181,7 +229,17 @@ async def list_devices() -> list[dict[str, Any]]:
 
 @app.get("/api/devices/{path:path}/capabilities")
 async def get_device_capabilities(path: str) -> dict[str, Any]:
-    """Get the full capability map for a specific device."""
+    """Get the full capability map for a specific device (evdev or MIDI)."""
+    if path.startswith("midi:") or path.startswith("rawmidi:"):
+        return {
+            "path": path,
+            "name": path,
+            "bus_type": "usb_midi",
+            "capabilities": {
+                "EV_MIDI": ["NOTE_ON", "NOTE_OFF", "CONTROL_CHANGE"],
+            },
+        }
+
     dev_path = _normalize_device_path(path)
     try:
         dev = evdev.InputDevice(dev_path)
@@ -200,6 +258,121 @@ async def get_device_capabilities(path: str) -> dict[str, Any]:
         return info
     except (FileNotFoundError, OSError) as exc:
         raise HTTPException(status_code=404, detail=f"Device not found or inaccessible: {dev_path} ({exc})")
+
+
+# ===================================================================
+# REST Endpoints: Security, Network Info & QR Pairing
+# ===================================================================
+
+class SecuritySettingsRequest(BaseModel):
+    pin_enabled: bool = False
+    pin: str = ""
+    subnet_guard_enabled: bool = True
+
+
+class SecurityVerifyRequest(BaseModel):
+    pin: str
+
+
+@app.get("/api/security/settings")
+async def get_security_settings() -> dict[str, Any]:
+    """Get current PIN & subnet guard settings."""
+    sec = load_security_settings()
+    return {
+        "pin_enabled": sec.get("pin_enabled", False),
+        "has_pin": bool(sec.get("pin")),
+        "subnet_guard_enabled": sec.get("subnet_guard_enabled", True),
+    }
+
+
+@app.post("/api/security/settings")
+async def update_security_settings(req: SecuritySettingsRequest) -> dict[str, Any]:
+    """Update PIN & subnet guard settings."""
+    sec = load_security_settings()
+    sec["pin_enabled"] = req.pin_enabled
+    if req.pin:
+        sec["pin"] = req.pin
+    sec["subnet_guard_enabled"] = req.subnet_guard_enabled
+    save_security_settings(sec)
+    return {"status": "ok", "pin_enabled": sec["pin_enabled"]}
+
+
+@app.post("/api/security/verify")
+async def verify_pin(req: SecurityVerifyRequest) -> dict[str, Any]:
+    """Verify 4-digit PIN for remote studio access."""
+    sec = load_security_settings()
+    if not sec.get("pin_enabled", False):
+        return {"valid": True, "required": False}
+    valid = req.pin == sec.get("pin", "")
+    return {"valid": valid, "required": True}
+
+
+@app.get("/api/system/network-info")
+async def get_network_info() -> dict[str, Any]:
+    """Return discovered Tailscale and local network IPs for tablet/phone pairing."""
+    ifaces = get_network_interfaces()
+    tailscale_ip = ifaces.get("tailscale")
+    wifi_ip = ifaces.get("wifi")
+    primary_ip = tailscale_ip or wifi_ip or ifaces.get("primary", "127.0.0.1")
+
+    port = 8765
+    remote_url = f"http://{primary_ip}:{port}/"
+    qr_svg = generate_svg_qr(remote_url)
+
+    return {
+        "interfaces": ifaces,
+        "primary_ip": primary_ip,
+        "port": port,
+        "remote_url": remote_url,
+        "qr_svg": qr_svg,
+    }
+
+
+@app.get("/api/system/qrcode")
+async def get_qrcode_svg(url: Optional[str] = None):
+    """Return raw SVG QR code for the remote pairing URL."""
+    if not url:
+        info = await get_network_info()
+        url = info["remote_url"]
+    svg = generate_svg_qr(url)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+# ===================================================================
+# REST Endpoints: GP2040-CE & MIDI Profilers
+# ===================================================================
+
+@app.get("/api/gp2040/detect")
+async def detect_gp2040_controller() -> dict[str, Any]:
+    """Auto-detect connected GP2040-CE / RP2040 custom guitar or controller."""
+    profile = auto_detect_gp2040()
+    if not profile:
+        return {"detected": False, "profile": None}
+    return {"detected": True, "profile": profile.to_dict()}
+
+
+class GP2040GenerateRequest(BaseModel):
+    target_game: str = "clone_hero"
+
+
+@app.post("/api/gp2040/generate")
+async def generate_gp2040_guitar_template(req: GP2040GenerateRequest) -> dict[str, Any]:
+    """Generate optimized rhythm game Steam Input VDF template for GP2040-CE."""
+    profile = auto_detect_gp2040()
+    template = generate_gp2040_template(profile, target_game=req.target_game)
+    path = template_manager.save_template(template)
+    return {
+        "status": "generated",
+        "template": template.to_dict(),
+        "saved_path": str(path),
+    }
+
+
+@app.get("/api/midi/devices")
+async def get_midi_devices_list() -> list[dict[str, Any]]:
+    """List connected USB-MIDI electronic drums and synthesizers."""
+    return list_midi_devices()
+
 
 
 # ===================================================================
@@ -508,8 +681,21 @@ async def get_vdf_diff(req: VDFDiffRequest) -> dict[str, Any]:
 
 @app.websocket("/ws/input/{device_path:path}")
 async def ws_input_stream(websocket: WebSocket, device_path: str):
-    """Stream live normalized input events from a single evdev device at 60 Hz+."""
+    """Stream live normalized input events from a single evdev or USB-MIDI device at 60 Hz+."""
     await websocket.accept()
+
+    # Handle USB-MIDI devices
+    if device_path.startswith("midi:") or device_path.startswith("rawmidi:"):
+        midi_stream = MidiEventStream(device_path)
+        try:
+            async for event in midi_stream.events():
+                await websocket.send_json(event)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            midi_stream.stop()
+        return
+
     dev_path = _normalize_device_path(device_path)
 
     if not os.path.exists(dev_path):
@@ -531,10 +717,12 @@ async def ws_input_stream(websocket: WebSocket, device_path: str):
 
 @app.websocket("/ws/input/all")
 async def ws_input_all(websocket: WebSocket):
-    """Stream live events from all currently connected devices multiplexed."""
+    """Stream live events from all currently connected devices multiplexed (evdev + MIDI)."""
     await websocket.accept()
     devices = discover_devices()
-    if not devices:
+    midi_devices = list_midi_devices()
+
+    if not devices and not midi_devices:
         await websocket.send_json({"message": "No devices connected"})
 
     open_devices: list[evdev.InputDevice] = []
@@ -564,10 +752,21 @@ async def ws_input_all(websocket: WebSocket):
         except Exception as exc:
             logger.debug("Error in read loop for %s: %s", dev.path, exc)
 
+    async def _read_midi(mdev: dict[str, Any]):
+        m_stream = MidiEventStream(mdev["path"])
+        try:
+            async for ev in m_stream.events():
+                await websocket.send_json(ev)
+        except (asyncio.CancelledError, WebSocketDisconnect):
+            return
+        finally:
+            m_stream.stop()
+
     tasks = [asyncio.create_task(_read_dev(d)) for d in open_devices]
+    tasks.extend([asyncio.create_task(_read_midi(m)) for m in midi_devices])
+
     try:
         while True:
-            # Keep socket alive until client disconnects
             await websocket.receive_text()
     except (WebSocketDisconnect, asyncio.CancelledError):
         pass
@@ -583,16 +782,18 @@ async def ws_input_all(websocket: WebSocket):
 
 @app.websocket("/ws/bind")
 async def ws_bind(websocket: WebSocket):
-    """Listen for 'Press Any Input' and emit the first registered button or axis movement."""
+    """Listen for 'Press Any Input' and emit the first registered button or axis movement.
+    Supports fail-safe exclusive grab with 10s watchdog and hotkey escape.
+    """
     await websocket.accept()
-    listener = PressAnyInputListener()
     try:
         while True:
-            # Client can ping or request wait
             msg = await websocket.receive_text()
             req = json.loads(msg) if msg else {}
-            timeout = float(req.get("timeout", 30.0))
+            timeout = float(req.get("timeout", 10.0))
+            grab = bool(req.get("grab", False))
 
+            listener = PressAnyInputListener(grab=grab)
             result = await listener.wait(timeout=timeout)
             if result:
                 await websocket.send_json({"status": "detected", "input": result})

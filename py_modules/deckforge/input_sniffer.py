@@ -297,22 +297,37 @@ class PressAnyInputListener:
 
     # Event types we actually care about for binding
     _INTERESTING_TYPES = {ecodes.EV_KEY, ecodes.EV_ABS, ecodes.EV_REL}
-    # Minimum axis movement to register as "pressed"
     _ABS_THRESHOLD = 0.25
+    _WATCHDOG_MAX_TIMEOUT = 10.0
 
-    def __init__(self, device_paths: Optional[list[str]] = None) -> None:
+    _ABORT_KEYS = {ecodes.KEY_ESC, ecodes.KEY_BACKSPACE}
+    _STEAM_BUTTONS = {ecodes.BTN_MODE}
+    _B_BUTTONS = {ecodes.BTN_EAST, ecodes.BTN_B}
+
+    def __init__(self, device_paths: Optional[list[str]] = None, grab: bool = False) -> None:
         self._device_paths = device_paths
+        self.grab = grab
 
-    async def wait(self, timeout: float = 30.0) -> Optional[dict[str, Any]]:
-        """Block asynchronously until an input is detected or *timeout* seconds elapse."""
+    async def wait(self, timeout: float = 10.0) -> Optional[dict[str, Any]]:
+        """Block asynchronously until an input is detected or watchdog timeout elapses."""
+        effective_timeout = min(timeout, self._WATCHDOG_MAX_TIMEOUT) if self.grab else timeout
         paths = self._device_paths
         if paths is None:
             paths = sorted(evdev.list_devices())
 
         devices: list[InputDevice] = []
+        grabbed_devices: set[InputDevice] = set()
+
         for p in paths:
             try:
-                devices.append(InputDevice(p))
+                dev = InputDevice(p)
+                devices.append(dev)
+                if self.grab:
+                    try:
+                        dev.grab()
+                        grabbed_devices.add(dev)
+                    except (OSError, PermissionError) as exc:
+                        logger.debug("Could not grab %s: %s", dev.path, exc)
             except (OSError, PermissionError):
                 continue
 
@@ -331,7 +346,6 @@ class PressAnyInputListener:
                         if isinstance(item, tuple):
                             code, absinfo = item
                             abs_info_cache[code] = absinfo
-                            # Remember center values
                 except Exception:
                     pass
 
@@ -344,8 +358,39 @@ class PressAnyInputListener:
                     if event.type not in self._INTERESTING_TYPES:
                         continue
 
-                    # For keys, only trigger on press (value=1), not release
+                    # Check for immediate abort hotkeys
                     if event.type == ecodes.EV_KEY:
+                        if event.code in self._ABORT_KEYS:
+                            if not result_future.done():
+                                result_future.set_result({
+                                    "aborted": True,
+                                    "reason": "Escape pressed",
+                                    "device_path": dev.path,
+                                    "event_type": "EV_KEY",
+                                    "code": event.code,
+                                    "code_name": "KEY_ESC",
+                                })
+                                return
+
+                        # Check for Steam + B abort chord
+                        if event.code in self._B_BUTTONS:
+                            try:
+                                active = dev.active_keys()
+                                if any(k in active for k in self._STEAM_BUTTONS):
+                                    if not result_future.done():
+                                        result_future.set_result({
+                                            "aborted": True,
+                                            "reason": "Steam+B chord pressed",
+                                            "device_path": dev.path,
+                                            "event_type": "EV_KEY",
+                                            "code": event.code,
+                                            "code_name": "ABORT_STEAM_B",
+                                        })
+                                        return
+                            except Exception:
+                                pass
+
+                        # For regular keys, only trigger on press (value=1)
                         if event.value != 1:
                             continue
                     elif event.type == ecodes.EV_ABS:
@@ -368,6 +413,7 @@ class PressAnyInputListener:
 
                     if not result_future.done():
                         result_future.set_result({
+                            "aborted": False,
                             "device_path": dev.path,
                             "event_type": ecodes.EV.get(event.type, f"EV_{event.type}"),
                             "code": event.code,
@@ -375,12 +421,13 @@ class PressAnyInputListener:
                         })
                         return
             except (OSError, asyncio.CancelledError):
+                # Disconnect / ENODEV or cancel
                 return
 
         tasks = [asyncio.create_task(_read_device(d)) for d in devices]
 
         try:
-            return await asyncio.wait_for(asyncio.shield(result_future), timeout=timeout)
+            return await asyncio.wait_for(asyncio.shield(result_future), timeout=effective_timeout)
         except asyncio.TimeoutError:
             return None
         finally:
@@ -390,6 +437,11 @@ class PressAnyInputListener:
                 try:
                     await t
                 except asyncio.CancelledError:
+                    pass
+            for d in grabbed_devices:
+                try:
+                    d.ungrab()
+                except Exception:
                     pass
             for d in devices:
                 try:

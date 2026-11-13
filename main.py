@@ -6,6 +6,21 @@ that the React frontend calls through Decky's serverAPI.
 
 from __future__ import annotations
 
+import os
+import sys
+
+# ── Vendor path prioritization for Decky Loader embedded Python runtime ───
+_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+_LIB_DIR = os.path.join(_PLUGIN_DIR, "py_modules", "lib")
+_PY_MODULES = os.path.join(_PLUGIN_DIR, "py_modules")
+
+if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+if _PY_MODULES not in sys.path:
+    sys.path.insert(0, _PY_MODULES)
+if _PLUGIN_DIR not in sys.path:
+    sys.path.insert(0, _PLUGIN_DIR)
+
 import asyncio
 import logging
 import threading
@@ -181,3 +196,36 @@ class Plugin:
             backend.presets.apply_preset, preset_name, device_path
         )
         return result
+
+    # ── RPC methods — hardware profilers & MIDI ───────────────────────
+
+    async def get_midi_devices(self) -> list[dict[str, Any]]:
+        """Return connected USB-MIDI electronic drums and synthesizers."""
+        from py_modules.deckforge.midi_sniffer import list_midi_devices  # type: ignore[import-untyped]
+        return await asyncio.to_thread(list_midi_devices)
+
+    async def auto_detect_crkd(self) -> dict[str, Any] | None:
+        """Auto-detect connected CRKD NEO S Pro Guitar."""
+        from py_modules.deckforge.crkd_profiler import auto_detect_crkd  # type: ignore[import-untyped]
+        profile = await asyncio.to_thread(auto_detect_crkd)
+        return profile.to_dict() if profile else None
+
+    async def auto_detect_gp2040(self) -> dict[str, Any] | None:
+        """Auto-detect connected GP2040-CE / RP2040 controller or guitar."""
+        from py_modules.deckforge.gp2040_profiler import auto_detect_gp2040  # type: ignore[import-untyped]
+        profile = await asyncio.to_thread(auto_detect_gp2040)
+        return profile.to_dict() if profile else None
+
+    async def generate_guitar_template(self, guitar_type: str, game: str) -> dict[str, Any]:
+        """Generate an optimized rhythm game template for CRKD or GP2040-CE."""
+        if guitar_type.lower() == "gp2040":
+            from py_modules.deckforge.gp2040_profiler import auto_detect_gp2040, generate_gp2040_template  # type: ignore[import-untyped]
+            prof = auto_detect_gp2040()
+            tpl = generate_gp2040_template(prof, target_game=game)
+            return tpl.to_dict()
+        else:
+            from py_modules.deckforge.crkd_profiler import auto_detect_crkd, generate_crkd_template  # type: ignore[import-untyped]
+            prof = auto_detect_crkd()
+            tpl = generate_crkd_template(prof, target_game=game)
+            return tpl.to_dict()
+

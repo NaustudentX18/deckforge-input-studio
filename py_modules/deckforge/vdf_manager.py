@@ -17,6 +17,7 @@ import shutil
 import struct
 import tempfile
 import time
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -272,6 +273,23 @@ def _read_binary_dict(stream: io.BytesIO) -> dict[str, Any]:
     return result
 
 
+def calculate_shortcut_id_32(exe: str, app_name: str) -> int:
+    """Calculate 32-bit legacy shortcut ID / folder ID for Non-Steam shortcuts.
+    Formula: (crc32(exe + appname) | 0x80000000)
+    """
+    key = (exe + app_name).encode("utf-8")
+    crc = zlib.crc32(key) & 0xFFFFFFFF
+    return (crc | 0x80000000) & 0xFFFFFFFF
+
+
+def calculate_shortcut_id_64(exe: str, app_name: str) -> int:
+    """Calculate Steam Big Picture / SteamOS 64-bit shortcut ID.
+    Formula: ((crc32(exe + appname) | 0x80000000) << 32) | 0x02000000
+    """
+    id_32 = calculate_shortcut_id_32(exe, app_name)
+    return ((id_32 << 32) | 0x02000000) & 0xFFFFFFFFFFFFFFFF
+
+
 # ===================================================================
 # SteamPathResolver
 # ===================================================================
@@ -335,6 +353,17 @@ class SteamPathResolver:
     def configset_neptune_path(self, user_id: str) -> Path:
         return (self.userdata_dir / user_id / "config" /
                 "controller_configs" / "apps" / "configset_controller_neptune.vdf")
+
+    def steam_controller_configs_dir(self, user_id: str) -> Path:
+        """Steam Controller Configs directory: ~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/"""
+        return self.steam_root / "steamapps" / "common" / "Steam Controller Configs" / user_id / "config"
+
+    def cloud_remote_dir(self, user_id: str) -> Path:
+        """Steam Cloud remote sync directory for Steam Controller (AppID 241100):
+        ~/.local/share/Steam/userdata/<USER_ID>/241100/remote/
+        """
+        return self.userdata_dir / user_id / "241100" / "remote"
+
 
 
 # ===================================================================
@@ -482,7 +511,11 @@ class VDFValidator:
     """Validates VDF template structures before writing."""
 
     REQUIRED_KEYS = {"version", "title", "controller_type"}
-    VALID_CONTROLLER_TYPES = {"neptune", "generic", "xbox360", "ps4", "ps5", "switch_pro"}
+    VALID_CONTROLLER_TYPES = {
+        "neptune", "generic", "xbox360", "ps4", "ps5", "switch_pro",
+        "controller_neptune", "controller_generic", "controller_xbox360",
+        "controller_ps4", "controller_ps5", "controller_switch_pro",
+    }
 
     @classmethod
     def validate(cls, template: VDFTemplate) -> list[str]:
@@ -674,8 +707,12 @@ class TemplateManager:
             return VDFTemplate.from_vdf_dict(data)
 
     def save_template(self, template: VDFTemplate) -> Path:
-        """Save a VDFTemplate to the local vault and (if available) to the first
-        Steam user template directory.
+        """Save a VDFTemplate to the local vault and atomically synchronize to all
+        locations indexed by SteamOS Gaming Mode:
+        1. Local master vault (~/.config/deckforge/templates/)
+        2. Steam user template directory (~/.local/share/Steam/userdata/<USER_ID>/config/controller_configs/templates/)
+        3. Steam Controller Configs directory (~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/)
+        4. Steam Cloud AppID 241100 remote directory (~/.local/share/Steam/userdata/<USER_ID>/241100/remote/)
 
         Returns the local vault path.
         """
@@ -685,7 +722,7 @@ class TemplateManager:
         if not safe_name:
             safe_name = f"template_{int(time.time())}"
 
-        # 1. Write to local vault
+        # 1. Write to local vault (.vdf and .json)
         local_vdf_path = self.local_dir / f"{safe_name}.vdf"
         local_json_path = self.local_dir / f"{safe_name}.json"
 
@@ -693,19 +730,52 @@ class TemplateManager:
         _atomic_write(local_vdf_path, vdf_text)
         _atomic_write(local_json_path, template.to_json())
 
-        # 2. Copy to first Steam user template dir
+        # 2. Sync to all Steam user ID directories
         user_ids = self.steam.enumerate_user_ids()
-        if user_ids:
-            user_tpl_dir = self.steam.user_template_dir(user_ids[0])
-            user_tpl_dir.mkdir(parents=True, exist_ok=True)
-            steam_path = user_tpl_dir / f"{safe_name}.vdf"
+        for uid in user_ids:
+            # A. User templates: userdata/<uid>/config/controller_configs/templates/
+            user_tpl_dir = self.steam.user_template_dir(uid)
             try:
-                _atomic_write(steam_path, vdf_text)
+                _atomic_write(user_tpl_dir / f"{safe_name}.vdf", vdf_text)
             except OSError as exc:
-                logger.warning("Cannot write to Steam user templates: %s", exc)
+                logger.debug("Cannot write to user templates for %s: %s", uid, exc)
 
-        logger.info("Saved template '%s' to %s", template.title, local_vdf_path)
+            # B. Controller Configs: steamapps/common/Steam Controller Configs/<uid>/config/
+            common_cfg_dir = self.steam.steam_controller_configs_dir(uid)
+            try:
+                _atomic_write(common_cfg_dir / f"{safe_name}.vdf", vdf_text)
+            except OSError as exc:
+                logger.debug("Cannot write to common controller configs for %s: %s", uid, exc)
+
+            # C. Steam Cloud remote sync: userdata/<uid>/241100/remote/
+            cloud_dir = self.steam.cloud_remote_dir(uid)
+            try:
+                _atomic_write(cloud_dir / f"{safe_name}.vdf", vdf_text)
+            except OSError as exc:
+                logger.debug("Cannot write to Steam Cloud remote for %s: %s", uid, exc)
+
+        logger.info("Saved template '%s' to %s and synced to Steam directories", template.title, local_vdf_path)
         return local_vdf_path
+
+    def save_schema_variants(self, template: VDFTemplate, schemas: Optional[list[str]] = None) -> list[Path]:
+        """Generate and save controller schema variants so Steam never hides a template
+        due to controller-type mismatch (e.g. neptune, xbox360, ps4, ps5, generic).
+        """
+        if schemas is None:
+            schemas = ["neptune", "xbox360", "ps4", "ps5", "generic"]
+
+        saved_paths: list[Path] = []
+        base_title = template.title
+
+        for schema in schemas:
+            variant = VDFTemplate.from_dict(template.to_dict())
+            variant.controller_type = schema
+            if schema != template.controller_type:
+                variant.title = f"{base_title} ({schema})"
+            path = self.save_template(variant)
+            saved_paths.append(path)
+
+        return saved_paths
 
     def clone_template(self, name: str, new_name: str) -> VDFTemplate:
         """Clone an existing template under a new name."""
@@ -826,7 +896,9 @@ class GameAssigner:
         return games
 
     def list_nonsteam_games(self) -> list[dict[str, Any]]:
-        """Parse shortcuts.vdf (binary VDF) to list non-Steam games."""
+        """Parse shortcuts.vdf (binary VDF) to list non-Steam games with accurate
+        32-bit legacy shortcut IDs and 64-bit Steam Big Picture shortcut IDs.
+        """
         games: list[dict[str, Any]] = []
         for uid in self.steam.enumerate_user_ids():
             sc_path = self.steam.shortcuts_vdf_path(uid)
@@ -840,9 +912,19 @@ class GameAssigner:
                         continue
                     app_name = entry.get("AppName", entry.get("appname", ""))
                     exe = entry.get("Exe", entry.get("exe", ""))
-                    app_id = entry.get("appid", key)
+
+                    # Calculate official CRC32 shortcut IDs
+                    id_32 = calculate_shortcut_id_32(exe, app_name) if (exe or app_name) else 0
+                    id_64 = calculate_shortcut_id_64(exe, app_name) if (exe or app_name) else 0
+
+                    raw_appid = entry.get("appid", key)
+                    resolved_appid = str(id_32) if id_32 else str(raw_appid)
+
                     games.append({
-                        "app_id": str(app_id),
+                        "app_id": resolved_appid,
+                        "shortcut_id_32": str(id_32),
+                        "shortcut_id_64": str(id_64),
+                        "raw_appid": str(raw_appid),
                         "name": app_name,
                         "exe": exe,
                         "start_dir": entry.get("StartDir", entry.get("startdir", "")),
@@ -862,6 +944,8 @@ class GameAssigner:
                                  template_manager: Optional[TemplateManager] = None) -> None:
         """Assign a controller template to a game by modifying
         configset_controller_neptune.vdf in the user's config.
+
+        For Non-Steam shortcuts, binds both the 32-bit ID and 64-bit Big Picture ID.
         """
         tm = template_manager or TemplateManager(steam=self.steam)
         template = tm._find_and_load(template_name)
@@ -870,6 +954,15 @@ class GameAssigner:
         user_ids = self.steam.enumerate_user_ids()
         if not user_ids:
             raise RuntimeError("No Steam user IDs found")
+
+        # Check if this app_id matches a non-steam game with alternative 32/64 bit IDs
+        target_ids = {str(app_id)}
+        for game in self.list_nonsteam_games():
+            if str(app_id) in (game.get("app_id"), game.get("shortcut_id_32"), game.get("shortcut_id_64"), game.get("raw_appid")):
+                if game.get("shortcut_id_32"):
+                    target_ids.add(str(game["shortcut_id_32"]))
+                if game.get("shortcut_id_64"):
+                    target_ids.add(str(game["shortcut_id_64"]))
 
         for uid in user_ids:
             config_path = self.steam.configset_neptune_path(uid)
@@ -885,15 +978,18 @@ class GameAssigner:
                 except VDFParseError:
                     existing = {}
 
-            # Set template for this app_id
+            # Set template for all matching app_ids
             if "controller_config" not in existing:
                 existing["controller_config"] = {}
-            existing["controller_config"][app_id] = template.to_vdf_dict()
+
+            tpl_vdf = template.to_vdf_dict()
+            for tid in target_ids:
+                existing["controller_config"][tid] = tpl_vdf
 
             vdf_text = serialize_vdf(existing)
             _atomic_write(config_path, vdf_text)
-            logger.info("Assigned template '%s' to app %s for user %s",
-                        template_name, app_id, uid)
+            logger.info("Assigned template '%s' to app targets %s for user %s",
+                        template_name, target_ids, uid)
 
 
 # ===================================================================
