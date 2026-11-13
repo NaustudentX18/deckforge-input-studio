@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  python-tests:
+    name: Backend Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install system dependencies for evdev/libevdev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libevdev-dev libudev-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install mido
+
+      - name: Run pytest test suite
+        run: |
+          pytest py_modules/deckforge/tests -v --tb=short
+
+  frontend-build:
+    name: Frontend Build & Packaging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Node dependencies
+        run: bun install
+
+      - name: Build frontend bundles
+        run: |
+          bun run build:web
+          bun run build:plugin
+
+      - name: Verify distribution files
+        run: |
+          test -f dist/index.js
+          test -f static/dist/web-entry.js
+          zip -r dist/deckforge-input-studio.zip plugin.json main.py dist/ py_modules/ static/dist/ defaults/ -x "py_modules/deckforge/tests/*" "**/__pycache__/*"
+          test -f dist/deckforge-input-studio.zip
