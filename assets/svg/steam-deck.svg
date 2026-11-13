@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <defs>
+    <filter id="sd-svg-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" floodColor="#000000" floodOpacity="0.6" />
+    </filter>
+    <linearGradient id="sd-svg-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#282a36" />
+      <stop offset="60%" stopColor="#1e1f29" />
+      <stop offset="100%" stopColor="#161720" />
+    </linearGradient>
+    <linearGradient id="sd-svg-screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#0d0e15" />
+      <stop offset="100%" stopColor="#08080d" />
+    </linearGradient>
+    <radialGradient id="sd-svg-stick" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stopColor="#44475a" />
+      <stop offset="70%" stopColor="#21222c" />
+      <stop offset="100%" stopColor="#191a21" />
+    </radialGradient>
+  </defs>
+
+  <!-- Steam Deck Shell -->
+  <path
+    d="M 120,70 C 160,65 240,60 400,60 C 560,60 640,65 680,70 C 740,78 775,120 775,190 C 775,270 760,370 735,420 C 715,455 670,450 630,445 C 530,440 450,440 400,440 C 350,440 270,440 170,445 C 130,450 85,455 65,420 C 40,370 25,270 25,190 C 25,120 60,78 120,70 Z"
+    fill="url(#sd-svg-body)"
+    stroke="#383a48"
+    stroke-width="3"
+    filter="url(#sd-svg-shadow)"
+  />
+
+  <!-- Center Screen -->
+  <rect x="250" y="115" width="300" height="210" rx="8" fill="#111219" stroke="#333544" stroke-width="2" />
+  <rect x="255" y="120" width="290" height="200" rx="4" fill="url(#sd-svg-screen)" />
+  <text x="400" y="225" text-anchor="middle" fill="#3a3d52" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" letter-spacing="4">
+    STEAM DECK
+  </text>
+
+  <!-- L1/R1, L2/R2 -->
+  <rect x="90" y="42" width="95" height="24" rx="6" fill="#343746" stroke="#4b4f63" stroke-width="1.5" />
+  <text x="137" y="58" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="11" font-weight="bold">L1</text>
+  <rect x="615" y="42" width="95" height="24" rx="6" fill="#343746" stroke="#4b4f63" stroke-width="1.5" />
+  <text x="662" y="58" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="11" font-weight="bold">R1</text>
+  <rect x="90" y="14" width="95" height="24" rx="6" fill="#22242f" stroke="#4b4f63" stroke-width="1.5" />
+  <text x="137" y="30" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="10" font-weight="bold">L2</text>
+  <rect x="615" y="14" width="95" height="24" rx="6" fill="#22242f" stroke="#4b4f63" stroke-width="1.5" />
+  <text x="662" y="30" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="10" font-weight="bold">R2</text>
+
+  <!-- Analog Sticks -->
+  <circle cx="120" cy="140" r="36" fill="#14151b" stroke="#3d4154" stroke-width="2" />
+  <circle cx="120" cy="140" r="26" fill="url(#sd-svg-stick)" stroke="#5a5d72" stroke-width="2" />
+  <circle cx="680" cy="140" r="36" fill="#14151b" stroke="#3d4154" stroke-width="2" />
+  <circle cx="680" cy="140" r="26" fill="url(#sd-svg-stick)" stroke="#5a5d72" stroke-width="2" />
+
+  <!-- D-Pad -->
+  <rect x="108" y="200" width="24" height="28" rx="4" fill="#2b2d3a" stroke="#434657" stroke-width="1.5" />
+  <rect x="108" y="254" width="24" height="28" rx="4" fill="#2b2d3a" stroke="#434657" stroke-width="1.5" />
+  <rect x="82" y="226" width="28" height="24" rx="4" fill="#2b2d3a" stroke="#434657" stroke-width="1.5" />
+  <rect x="134" y="226" width="28" height="24" rx="4" fill="#2b2d3a" stroke="#434657" stroke-width="1.5" />
+  <rect x="108" y="226" width="24" height="24" fill="#242631" />
+
+  <!-- ABXY -->
+  <circle cx="680" cy="215" r="13" fill="#2a2c3a" stroke="#45485c" stroke-width="2" />
+  <text x="680" y="219" text-anchor="middle" fill="#f1c40f" font-family="sans-serif" font-size="12" font-weight="bold">Y</text>
+  <circle cx="652" cy="240" r="13" fill="#2a2c3a" stroke="#45485c" stroke-width="2" />
+  <text x="652" y="244" text-anchor="middle" fill="#3498db" font-family="sans-serif" font-size="12" font-weight="bold">X</text>
+  <circle cx="708" cy="240" r="13" fill="#2a2c3a" stroke="#45485c" stroke-width="2" />
+  <text x="708" y="244" text-anchor="middle" fill="#e74c3c" font-family="sans-serif" font-size="12" font-weight="bold">B</text>
+  <circle cx="680" cy="265" r="13" fill="#2a2c3a" stroke="#45485c" stroke-width="2" />
+  <text x="680" y="269" text-anchor="middle" fill="#2ecc71" font-family="sans-serif" font-size="12" font-weight="bold">A</text>
+
+  <!-- Trackpads -->
+  <rect x="90" y="300" width="60" height="60" rx="8" fill="#1b1c25" stroke="#3d4052" stroke-width="2" />
+  <rect x="650" y="300" width="60" height="60" rx="8" fill="#1b1c25" stroke="#3d4052" stroke-width="2" />
+</svg>

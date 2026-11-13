@@ -1,0 +1,7 @@
+export { default as GuitarController } from './GuitarController';
+export { default as DrumKit } from './DrumKit';
+export { default as SteamDeckGamepad } from './SteamDeckGamepad';
+export { default as Fightstick } from './Fightstick';
+export { default as KeyboardMacropad } from './KeyboardMacropad';
+export { default as BlankCanvas } from './BlankCanvas';
+export { default as CRKDGuitar } from './CRKDGuitar';

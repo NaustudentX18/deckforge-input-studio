@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dk-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#1e1e2e" />
+      <stop offset="100%" stopColor="#0e0e1e" />
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="600" height="500" rx="12" fill="url(#dk-bg)" />
+
+  <!-- Cymbals -->
+  <ellipse cx="100" cy="130" rx="50" ry="14" fill="#f0c040" stroke="#a08520" stroke-width="2" />
+  <ellipse cx="130" cy="60" rx="55" ry="16" fill="#f5d060" stroke="#a08520" stroke-width="2" />
+  <ellipse cx="480" cy="100" rx="60" ry="18" fill="#dab840" stroke="#a08520" stroke-width="2" />
+
+  <!-- Snare & Toms -->
+  <ellipse cx="300" cy="300" rx="55" ry="50" fill="#e8d5b7" stroke="#555" stroke-width="3" />
+  <ellipse cx="200" cy="180" rx="42" ry="38" fill="#c0392b" stroke="#555" stroke-width="3" />
+  <ellipse cx="340" cy="170" rx="45" ry="40" fill="#2980b9" stroke="#555" stroke-width="3" />
+  <ellipse cx="470" cy="310" rx="52" ry="48" fill="#27ae60" stroke="#555" stroke-width="3" />
+
+  <!-- Kick Pedals -->
+  <rect x="235" y="415" width="50" height="70" rx="6" fill="#555" stroke="#333" stroke-width="2" />
+  <rect x="355" y="415" width="50" height="70" rx="6" fill="#555" stroke="#333" stroke-width="2" />
+</svg>

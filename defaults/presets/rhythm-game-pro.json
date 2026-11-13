@@ -1,0 +1,281 @@
+{
+  "id": "preset-rhythm-game-pro",
+  "name": "Rhythm Game Pro",
+  "description": "Optimized for Clone Hero, YARG, and rhythm games. Zero-latency strum/fret bindings.",
+  "target_controller": "guitar",
+  "vendorId": 0,
+  "productId": 0,
+  "author": "DeckForge",
+  "createdAt": "2026-11-13T00:00:00.000Z",
+  "tags": ["rhythm", "clone-hero", "yarg", "guitar", "zero-latency"],
+  "calibration": {
+    "debounce_ms": 2,
+    "whammy_normalize": true,
+    "tilt_threshold": 0.6
+  },
+  "mappings": [
+    {
+      "source": "FRET_GREEN",
+      "target_type": "keyboard",
+      "target_code": "KEY_A",
+      "fallback_gamepad": "BTN_SOUTH",
+      "description": "Green Fret -> Key A / BTN_SOUTH"
+    },
+    {
+      "source": "FRET_RED",
+      "target_type": "keyboard",
+      "target_code": "KEY_S",
+      "fallback_gamepad": "BTN_EAST",
+      "description": "Red Fret -> Key S / BTN_EAST"
+    },
+    {
+      "source": "FRET_YELLOW",
+      "target_type": "keyboard",
+      "target_code": "KEY_J",
+      "fallback_gamepad": "BTN_NORTH",
+      "description": "Yellow Fret -> Key J / BTN_NORTH"
+    },
+    {
+      "source": "FRET_BLUE",
+      "target_type": "keyboard",
+      "target_code": "KEY_K",
+      "fallback_gamepad": "BTN_WEST",
+      "description": "Blue Fret -> Key K / BTN_WEST"
+    },
+    {
+      "source": "FRET_ORANGE",
+      "target_type": "keyboard",
+      "target_code": "KEY_L",
+      "fallback_gamepad": "BTN_TL",
+      "description": "Orange Fret -> Key L / BTN_TL"
+    },
+    {
+      "source": "STRUM_UP",
+      "target_type": "keyboard",
+      "target_code": "KEY_UP",
+      "fallback_gamepad": "BTN_DPAD_UP",
+      "description": "Strum Up -> Key Up / D-Pad Up"
+    },
+    {
+      "source": "STRUM_DOWN",
+      "target_type": "keyboard",
+      "target_code": "KEY_DOWN",
+      "fallback_gamepad": "BTN_DPAD_DOWN",
+      "description": "Strum Down -> Key Down / D-Pad Down"
+    },
+    {
+      "source": "WHAMMY",
+      "target_type": "gamepad",
+      "target_code": "ABS_RY",
+      "description": "Whammy Bar -> Right Stick Y Axis"
+    },
+    {
+      "source": "TILT",
+      "target_type": "keyboard",
+      "target_code": "KEY_SPACE",
+      "fallback_gamepad": "BTN_SELECT",
+      "description": "Tilt (Star Power) -> Key Space / Select"
+    },
+    {
+      "source": "BTN_START",
+      "target_type": "keyboard",
+      "target_code": "KEY_ESC",
+      "description": "Start -> Escape"
+    },
+    {
+      "source": "BTN_SELECT",
+      "target_type": "keyboard",
+      "target_code": "KEY_ENTER",
+      "description": "Select -> Enter"
+    }
+  ],
+  "bindings": [
+    {
+      "id": "b-green",
+      "label": "Green Fret",
+      "sourceCode": "FRET_GREEN",
+      "output": { "type": "keyboard", "code": "KEY_A" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "fret_green",
+      "enabled": true
+    },
+    {
+      "id": "b-red",
+      "label": "Red Fret",
+      "sourceCode": "FRET_RED",
+      "output": { "type": "keyboard", "code": "KEY_S" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "fret_red",
+      "enabled": true
+    },
+    {
+      "id": "b-yellow",
+      "label": "Yellow Fret",
+      "sourceCode": "FRET_YELLOW",
+      "output": { "type": "keyboard", "code": "KEY_J" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "fret_yellow",
+      "enabled": true
+    },
+    {
+      "id": "b-blue",
+      "label": "Blue Fret",
+      "sourceCode": "FRET_BLUE",
+      "output": { "type": "keyboard", "code": "KEY_K" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "fret_blue",
+      "enabled": true
+    },
+    {
+      "id": "b-orange",
+      "label": "Orange Fret",
+      "sourceCode": "FRET_ORANGE",
+      "output": { "type": "keyboard", "code": "KEY_L" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "fret_orange",
+      "enabled": true
+    },
+    {
+      "id": "b-strum-up",
+      "label": "Strum Up",
+      "sourceCode": "STRUM_UP",
+      "output": { "type": "keyboard", "code": "KEY_UP" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_up",
+      "enabled": true
+    },
+    {
+      "id": "b-strum-down",
+      "label": "Strum Down",
+      "sourceCode": "STRUM_DOWN",
+      "output": { "type": "keyboard", "code": "KEY_DOWN" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_down",
+      "enabled": true
+    },
+    {
+      "id": "b-whammy",
+      "label": "Whammy",
+      "sourceCode": "WHAMMY",
+      "output": { "type": "gamepad", "code": "ABS_RY" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "whammy",
+      "enabled": true
+    },
+    {
+      "id": "b-tilt",
+      "label": "Star Power / Tilt",
+      "sourceCode": "TILT",
+      "output": { "type": "keyboard", "code": "KEY_SPACE" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "star",
+      "enabled": true
+    },
+    {
+      "id": "b-start",
+      "label": "Start",
+      "sourceCode": "BTN_START",
+      "output": { "type": "keyboard", "code": "KEY_ESC" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "start",
+      "enabled": true
+    },
+    {
+      "id": "b-select",
+      "label": "Select",
+      "sourceCode": "BTN_SELECT",
+      "output": { "type": "keyboard", "code": "KEY_ENTER" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "select",
+      "enabled": true
+    }
+  ],
+  "axisCalibrations": [
+    {
+      "axis": "WHAMMY",
+      "rawMin": 0,
+      "rawMax": 255,
+      "rawCenter": 0,
+      "deadzone": { "inner": 0.05, "outer": 0.95, "shape": "circle" },
+      "responseCurve": { "type": "linear", "controlPoints": [], "exponent": 1.0 },
+      "inverted": false
+    }
+  ]
+}

@@ -1,0 +1,361 @@
+{
+  "id": "preset-desktop-media",
+  "name": "Desktop & Couch Media",
+  "description": "Right stick as mouse, triggers for clicks, grips for volume and Alt+Tab",
+  "target_controller": "gamepad",
+  "vendorId": 0,
+  "productId": 0,
+  "author": "DeckForge",
+  "createdAt": "2026-11-13T00:00:00.000Z",
+  "tags": ["desktop", "media", "mouse-mode", "couch-browsing", "shortcuts"],
+  "mappings": [
+    {
+      "source": "AXIS_RX_RY",
+      "source_name": "Right Stick",
+      "target_type": "mouse",
+      "target_code": "REL_XY",
+      "mode": "as_mouse",
+      "description": "Right Stick -> Mouse cursor (as_mouse mode)"
+    },
+    {
+      "source": "AXIS_R2",
+      "source_name": "R2",
+      "target_type": "mouse",
+      "target_code": "BTN_LEFT",
+      "description": "R2 -> Left Click"
+    },
+    {
+      "source": "AXIS_L2",
+      "source_name": "L2",
+      "target_type": "mouse",
+      "target_code": "BTN_RIGHT",
+      "description": "L2 -> Right Click"
+    },
+    {
+      "source": "TOUCH_RIGHT",
+      "source_name": "Right Trackpad",
+      "target_type": "mouse",
+      "target_code": "REL_XY",
+      "mode": "touch",
+      "description": "Right Trackpad -> Mouse (touch mode)"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY3",
+      "source_name": "R4",
+      "target_type": "system",
+      "target_code": "KEY_VOLUMEUP",
+      "description": "R4 -> Volume Up"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY1",
+      "source_name": "L4",
+      "target_type": "system",
+      "target_code": "KEY_VOLUMEDOWN",
+      "description": "L4 -> Volume Down"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY4",
+      "source_name": "R5",
+      "target_type": "system",
+      "target_code": "ALT_TAB",
+      "description": "R5 -> Alt+Tab (next window)"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY2",
+      "source_name": "L5",
+      "target_type": "system",
+      "target_code": "KEY_PLAYPAUSE",
+      "description": "L5 -> Media Play/Pause"
+    },
+    {
+      "source": "BTN_DPAD",
+      "source_name": "DPad",
+      "target_type": "keyboard",
+      "target_code": "KEY_ARROWS",
+      "description": "DPad -> Arrow keys"
+    },
+    {
+      "source": "BTN_SOUTH",
+      "source_name": "A",
+      "target_type": "keyboard",
+      "target_code": "KEY_ENTER",
+      "description": "A -> Enter"
+    },
+    {
+      "source": "BTN_EAST",
+      "source_name": "B",
+      "target_type": "keyboard",
+      "target_code": "KEY_ESC",
+      "description": "B -> Escape/Back"
+    },
+    {
+      "source": "BTN_START",
+      "source_name": "Start",
+      "target_type": "system",
+      "target_code": "STEAM_KEYBOARD_TOGGLE",
+      "description": "Start -> Toggle Virtual Keyboard"
+    }
+  ],
+  "bindings": [
+    {
+      "id": "b-rstick-mouse",
+      "label": "Mouse Cursor",
+      "sourceCode": "AXIS_RX",
+      "output": { "type": "mouse", "code": "REL_X" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "mouse",
+      "enabled": true
+    },
+    {
+      "id": "b-r2-leftclick",
+      "label": "Left Click",
+      "sourceCode": "AXIS_R2",
+      "output": { "type": "mouse", "code": "BTN_LEFT" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "touch_app",
+      "enabled": true
+    },
+    {
+      "id": "b-l2-rightclick",
+      "label": "Right Click",
+      "sourceCode": "AXIS_L2",
+      "output": { "type": "mouse", "code": "BTN_RIGHT" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "touch_app",
+      "enabled": true
+    },
+    {
+      "id": "b-rtrackpad-mouse",
+      "label": "Trackpad Mouse",
+      "sourceCode": "TOUCH_RIGHT",
+      "output": { "type": "mouse", "code": "REL_XY" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "gesture",
+      "enabled": true
+    },
+    {
+      "id": "b-r4-volup",
+      "label": "Volume Up",
+      "sourceCode": "BTN_TRIGGER_HAPPY3",
+      "output": { "type": "system", "code": "KEY_VOLUMEUP" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 100,
+        "hapticFeedback": false
+      },
+      "icon": "volume_up",
+      "enabled": true
+    },
+    {
+      "id": "b-l4-voldown",
+      "label": "Volume Down",
+      "sourceCode": "BTN_TRIGGER_HAPPY1",
+      "output": { "type": "system", "code": "KEY_VOLUMEDOWN" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 100,
+        "hapticFeedback": false
+      },
+      "icon": "volume_down",
+      "enabled": true
+    },
+    {
+      "id": "b-r5-alttab",
+      "label": "Alt+Tab Window Switcher",
+      "sourceCode": "BTN_TRIGGER_HAPPY4",
+      "output": { "type": "system", "code": "ALT_TAB" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "tab",
+      "enabled": true
+    },
+    {
+      "id": "b-l5-playpause",
+      "label": "Media Play / Pause",
+      "sourceCode": "BTN_TRIGGER_HAPPY2",
+      "output": { "type": "system", "code": "KEY_PLAYPAUSE" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "play_arrow",
+      "enabled": true
+    },
+    {
+      "id": "b-dpad-up",
+      "label": "Arrow Up",
+      "sourceCode": "BTN_DPAD_UP",
+      "output": { "type": "keyboard", "code": "KEY_UP" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_upward",
+      "enabled": true
+    },
+    {
+      "id": "b-dpad-down",
+      "label": "Arrow Down",
+      "sourceCode": "BTN_DPAD_DOWN",
+      "output": { "type": "keyboard", "code": "KEY_DOWN" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_downward",
+      "enabled": true
+    },
+    {
+      "id": "b-dpad-left",
+      "label": "Arrow Left",
+      "sourceCode": "BTN_DPAD_LEFT",
+      "output": { "type": "keyboard", "code": "KEY_LEFT" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_back",
+      "enabled": true
+    },
+    {
+      "id": "b-dpad-right",
+      "label": "Arrow Right",
+      "sourceCode": "BTN_DPAD_RIGHT",
+      "output": { "type": "keyboard", "code": "KEY_RIGHT" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_forward",
+      "enabled": true
+    },
+    {
+      "id": "b-btn-a",
+      "label": "Enter",
+      "sourceCode": "BTN_SOUTH",
+      "output": { "type": "keyboard", "code": "KEY_ENTER" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "keyboard_return",
+      "enabled": true
+    },
+    {
+      "id": "b-btn-b",
+      "label": "Escape",
+      "sourceCode": "BTN_EAST",
+      "output": { "type": "keyboard", "code": "KEY_ESC" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "close",
+      "enabled": true
+    },
+    {
+      "id": "b-start-vkb",
+      "label": "Toggle Virtual Keyboard",
+      "sourceCode": "BTN_START",
+      "output": { "type": "system", "code": "STEAM_KEYBOARD_TOGGLE" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "keyboard",
+      "enabled": true
+    }
+  ],
+  "axisCalibrations": [
+    {
+      "axis": "ABS_RX",
+      "rawMin": -32768,
+      "rawMax": 32767,
+      "rawCenter": 0,
+      "deadzone": { "inner": 0.08, "outer": 0.96, "shape": "circle" },
+      "responseCurve": { "type": "relaxed", "controlPoints": [], "exponent": 1.4 },
+      "inverted": false
+    },
+    {
+      "axis": "ABS_RY",
+      "rawMin": -32768,
+      "rawMax": 32767,
+      "rawCenter": 0,
+      "deadzone": { "inner": 0.08, "outer": 0.96, "shape": "circle" },
+      "responseCurve": { "type": "relaxed", "controlPoints": [], "exponent": 1.4 },
+      "inverted": false
+    }
+  ]
+}

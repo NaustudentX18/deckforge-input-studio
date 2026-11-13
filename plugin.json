@@ -1,0 +1,8 @@
+{
+  "name": "DeckForge Input Studio",
+  "author": "DeckForge",
+  "publish": true,
+  "flags": ["root"],
+  "api_version": 1,
+  "image": "https://github.com/deckforge/input-studio/raw/main/assets/plugin_icon.png"
+}

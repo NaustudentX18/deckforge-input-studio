@@ -1,0 +1,186 @@
+{
+  "id": "preset-retro-emulation",
+  "name": "Retro Emulation Universal",
+  "description": "Maps spare buttons to Save State, Load State, Fast Forward, Rewind, Exit",
+  "target_controller": "gamepad",
+  "vendorId": 0,
+  "productId": 0,
+  "author": "DeckForge",
+  "createdAt": "2026-11-13T00:00:00.000Z",
+  "tags": ["retroarch", "emulation", "save-state", "speedup", "steam-deck"],
+  "mappings": [
+    {
+      "source": "PASSTHROUGH",
+      "target_type": "gamepad",
+      "description": "Standard ABXY/DPad/Sticks/Triggers pass-through"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY1",
+      "source_name": "L4",
+      "target_type": "keyboard",
+      "target_code": "KEY_F2",
+      "description": "L4 (back grip) -> Save State (F2)"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY3",
+      "source_name": "R4",
+      "target_type": "keyboard",
+      "target_code": "KEY_F4",
+      "description": "R4 (back grip) -> Load State (F4)"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY2",
+      "source_name": "L5",
+      "target_type": "keyboard",
+      "target_code": "KEY_R",
+      "description": "L5 -> Rewind (keyboard R)"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY4",
+      "source_name": "R5",
+      "target_type": "keyboard",
+      "target_code": "KEY_F",
+      "description": "R5 -> Fast Forward (keyboard F)"
+    },
+    {
+      "source": "BTN_TRIGGER_HAPPY1",
+      "chord_with": "BTN_TRIGGER_HAPPY3",
+      "source_name": "L4+R4",
+      "target_type": "system",
+      "target_code": "KEY_ESC",
+      "shortcut": "ALT_F4",
+      "description": "L4+R4 chord -> Exit Emulator (Alt+F4)"
+    },
+    {
+      "source": "BTN_DPAD_UP",
+      "chord_with": "BTN_SELECT",
+      "source_name": "Select + DPad Up",
+      "target_type": "keyboard",
+      "target_code": "KEY_F7",
+      "description": "Select+DPad Up -> Next Save Slot"
+    },
+    {
+      "source": "BTN_DPAD_DOWN",
+      "chord_with": "BTN_SELECT",
+      "source_name": "Select + DPad Down",
+      "target_type": "keyboard",
+      "target_code": "KEY_F6",
+      "description": "Select+DPad Down -> Prev Save Slot"
+    }
+  ],
+  "bindings": [
+    {
+      "id": "b-l4-savestate",
+      "label": "Save State",
+      "sourceCode": "BTN_TRIGGER_HAPPY1",
+      "output": { "type": "keyboard", "code": "KEY_F2" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "save",
+      "enabled": true
+    },
+    {
+      "id": "b-r4-loadstate",
+      "label": "Load State",
+      "sourceCode": "BTN_TRIGGER_HAPPY3",
+      "output": { "type": "keyboard", "code": "KEY_F4" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "folder_open",
+      "enabled": true
+    },
+    {
+      "id": "b-l5-rewind",
+      "label": "Rewind",
+      "sourceCode": "BTN_TRIGGER_HAPPY2",
+      "output": { "type": "keyboard", "code": "KEY_R" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "replay",
+      "enabled": true
+    },
+    {
+      "id": "b-r5-fastforward",
+      "label": "Fast Forward",
+      "sourceCode": "BTN_TRIGGER_HAPPY4",
+      "output": { "type": "keyboard", "code": "KEY_F" },
+      "activator": {
+        "type": "regular_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "fast_forward",
+      "enabled": true
+    },
+    {
+      "id": "b-chord-exit",
+      "label": "Exit Emulator",
+      "sourceCode": "BTN_TRIGGER_HAPPY1",
+      "output": { "type": "system", "code": "ALT_F4" },
+      "activator": {
+        "type": "chorded_press",
+        "holdDurationMs": 500,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "BTN_TRIGGER_HAPPY3",
+        "fireIntervalMs": 0,
+        "hapticFeedback": true
+      },
+      "icon": "power_settings_new",
+      "enabled": true
+    },
+    {
+      "id": "b-chord-next-slot",
+      "label": "Next Save Slot",
+      "sourceCode": "BTN_DPAD_UP",
+      "output": { "type": "keyboard", "code": "KEY_F7" },
+      "activator": {
+        "type": "chorded_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "BTN_SELECT",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_upward",
+      "enabled": true
+    },
+    {
+      "id": "b-chord-prev-slot",
+      "label": "Prev Save Slot",
+      "sourceCode": "BTN_DPAD_DOWN",
+      "output": { "type": "keyboard", "code": "KEY_F6" },
+      "activator": {
+        "type": "chorded_press",
+        "holdDurationMs": 0,
+        "doublePressWindowMs": 0,
+        "chordSourceCode": "BTN_SELECT",
+        "fireIntervalMs": 0,
+        "hapticFeedback": false
+      },
+      "icon": "arrow_downward",
+      "enabled": true
+    }
+  ],
+  "axisCalibrations": []
+}

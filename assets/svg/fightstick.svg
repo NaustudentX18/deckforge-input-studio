@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 300" width="100%" height="100%">
+  <defs>
+    <linearGradient id="fs-panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#2c2d3a" />
+      <stop offset="100%" stopColor="#15161f" />
+    </linearGradient>
+    <radialGradient id="fs-ball" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stopColor="#ff7675" />
+      <stop offset="100%" stopColor="#d63031" />
+    </radialGradient>
+  </defs>
+
+  <rect x="15" y="12" width="570" height="276" rx="22" fill="url(#fs-panel)" stroke="#3d4052" stroke-width="3" />
+  <rect x="24" y="20" width="552" height="260" rx="16" fill="none" stroke="#272938" stroke-width="1.5" />
+
+  <!-- Joystick -->
+  <circle cx="160" cy="165" r="42" fill="#14151b" stroke="#333544" stroke-width="2" />
+  <line x1="160" y1="165" x2="160" y2="140" stroke="#bdc3c7" stroke-width="6" stroke-linecap="round" />
+  <circle cx="160" cy="140" r="24" fill="url(#fs-ball)" stroke="#441416" stroke-width="1.5" />
+
+  <!-- 8 Buttons -->
+  <circle cx="330" cy="140" r="18" fill="#3498db" stroke="#222" stroke-width="2" />
+  <circle cx="380" cy="125" r="18" fill="#f1c40f" stroke="#222" stroke-width="2" />
+  <circle cx="430" cy="125" r="18" fill="#e74c3c" stroke="#222" stroke-width="2" />
+  <circle cx="480" cy="135" r="18" fill="#9b59b6" stroke="#222" stroke-width="2" />
+
+  <circle cx="330" cy="195" r="18" fill="#2ecc71" stroke="#222" stroke-width="2" />
+  <circle cx="380" cy="180" r="18" fill="#e67e22" stroke="#222" stroke-width="2" />
+  <circle cx="430" cy="180" r="18" fill="#1abc9c" stroke="#222" stroke-width="2" />
+  <circle cx="480" cy="190" r="18" fill="#e91e63" stroke="#222" stroke-width="2" />
+</svg>
