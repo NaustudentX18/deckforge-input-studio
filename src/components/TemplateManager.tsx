@@ -286,9 +286,12 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
                     color: '#eee'
                   }}
                 >
-                  <option value="steam_deck">Steam Deck</option>
-                  <option value="guitar">Guitar Controller (CRKD / GH)</option>
-                  <option value="drum_kit">Drum Kit</option>
+                  <option value="steam_deck">Steam Deck (Neptune)</option>
+                  <option value="crkd_les_paul">CRKD Les Paul Pro Model</option>
+                  <option value="crkd_guitar">CRKD NEO S Pro Guitar</option>
+                  <option value="riffstick">GP2040-CE / RP2040 Riffstick</option>
+                  <option value="guitar">Guitar Controller (Standard GH/RB)</option>
+                  <option value="drum_kit">Drum Kit (USB-MIDI)</option>
                   <option value="fightstick">Arcade Fightstick</option>
                   <option value="macropad">Keyboard Macropad</option>
                   <option value="generic">Generic Gamepad</option>

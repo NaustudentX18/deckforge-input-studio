@@ -138,7 +138,7 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
           { label: 'Dual-Mode Deployment', desc: 'Decky Loader QAM & Remote Tailscale Web', icon: '⚡' },
           { label: 'Triple VDF Synchronization', desc: 'Steam Controller Configs, Cloud & Local Vault', icon: '🔄' },
           { label: 'Zero-Latency Hardware Engine', desc: 'evdev 60Hz+ normalized event bus & MIDI', icon: '⏱' },
-          { label: 'Auto-Profilers Included', desc: 'CRKD NEO S & GP2040-CE / RP2040 Guitars', icon: '🎸' },
+          { label: 'Auto-Profilers Included', desc: 'CRKD Les Paul Pro, NEO S & GP2040 Guitars', icon: '🎸' },
         ].map((badge, idx) => (
           <div key={idx} style={{
             backgroundColor: '#141424',
@@ -156,6 +156,50 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── Visual Blueprint Gallery Highlight Banner ── */}
+      <div style={{
+        backgroundColor: '#161826',
+        border: '1px solid #d97706',
+        borderRadius: '10px',
+        padding: '16px 20px',
+        marginBottom: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: 'linear-gradient(90deg, #18192a 0%, #261f14 100%)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <span style={{ fontSize: '32px' }}>🎸</span>
+          <div>
+            <div style={{ color: '#f59e0b', fontSize: '15px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              CRKD Les Paul Pro Model Blueprint
+              <span style={{ backgroundColor: '#78350f', color: '#fef08a', fontSize: '10px', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                NEW BLUEPRINT
+              </span>
+            </div>
+            <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>
+              Experience the iconic single-cutaway Les Paul chassis with authentic Rhythm/Treble Star Power toggle, 4 speed knobs, Cherry MX mechanical frets + solo tap strip, and heavy-duty whammy bar.
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={onLaunchStudio}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#f59e0b',
+            color: '#000',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          View in Studio →
+        </button>
       </div>
 
       {/* ── Guide Navigation Tabs ── */}
@@ -193,14 +237,28 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
       {/* ── Guide Content Panels ── */}
       {activeGuideTab === 'hardware' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-          {/* Card 1: CRKD Guitar */}
+          {/* Card 1: CRKD Les Paul Pro Model */}
+          <div style={{ backgroundColor: '#141422', border: '1px solid #d97706', borderRadius: '10px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#f59e0b', fontWeight: 800 }}>CRKD Les Paul Pro Model</h3>
+              <span style={{ backgroundColor: '#451a03', color: '#fef08a', fontSize: '10px', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>VID 0x2E95 / PID 0x0883</span>
+            </div>
+            <p style={{ color: '#94a3b8', fontSize: '12px', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+              Iconic single-cutaway carved top silhouette with gold multi-ply binding. Features Cherry MX mechanical frets, solo tap strip, authentic Rhythm/Treble Star Power toggle switch, 4 gold speed knobs (Vol 1/2, Tone 1/2), and spring whammy bar.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: '#f59e0b' }}>
+              <span>✓ Single-Cutaway Chassis</span> • <span>✓ Rhythm/Treble Switch</span> • <span>✓ 4 Speed Knobs</span>
+            </div>
+          </div>
+
+          {/* Card 2: CRKD NEO S Pro Guitar */}
           <div style={{ backgroundColor: '#141422', border: '1px solid #24243a', borderRadius: '10px', padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', color: '#fff', fontWeight: 800 }}>CRKD NEO S Pro Guitar</h3>
-              <span style={{ backgroundColor: '#2a1a24', color: '#e94560', fontSize: '10px', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>VID 0x2E95</span>
+              <span style={{ backgroundColor: '#2a1a24', color: '#e94560', fontSize: '10px', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>VID 0x2E95 / PID 0x0882</span>
             </div>
             <p style={{ color: '#94a3b8', fontSize: '12px', lineHeight: 1.5, margin: '0 0 12px 0' }}>
-              Features Cherry MX mechanical frets, solo frets, dual-switch spring-return strum bar, whammy half-axis normalization, and accelerometer Star Power tilt thresholding. Auto-detected with one-click presets for Clone Hero, YARG, and RPCS3 Rock Band 4.
+              Modern angular stealth guitar chassis with Cherry MX mechanical frets, solo frets, dual-switch spring-return strum bar, whammy half-axis normalization, and accelerometer Star Power tilt thresholding.
             </p>
             <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: '#00e5ff' }}>
               <span>✓ Auto-Profiled</span> • <span>✓ Whammy Arc</span> • <span>✓ 2ms Debounce</span>

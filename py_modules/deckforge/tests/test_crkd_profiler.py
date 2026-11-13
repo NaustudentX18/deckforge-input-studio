@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from deckforge.crkd_profiler import (
     CRKDGuitarProfile,
     auto_detect_crkd,
+    auto_detect_crkd_les_paul,
     generate_crkd_template,
     is_crkd_or_guitar_device,
 )
@@ -116,3 +117,39 @@ class TestCRKDProfiler:
         profile = CRKDGuitarProfile()
         tpl = generate_crkd_template(profile, target_game="Guitar Hero III (PCSX2)")
         assert "Guitar Hero III" in tpl.title
+
+    @patch("deckforge.crkd_profiler.discover_devices")
+    def test_crkd_les_paul_pro_detection(self, mock_discover):
+        mock_lp = DeviceInfo(
+            path="/dev/input/event6",
+            name="CRKD Les Paul Pro Model Wireless",
+            vendor_id=0x2E95,
+            product_id=0x0883,
+            serial="LP-PRO-001",
+            phys="usb/input1",
+            uniq="",
+            capabilities={
+                "EV_KEY": ["BTN_SOUTH", "BTN_EAST", "BTN_NORTH", "BTN_WEST", "BTN_TL", "BTN_DPAD_UP", "BTN_DPAD_DOWN", "BTN_MODE"],
+                "EV_ABS": ["ABS_RZ", "ABS_Y", "ABS_RX", "ABS_RY"],
+            },
+            bus_type="usb",
+        )
+        mock_discover.return_value = [mock_lp]
+
+        profile = auto_detect_crkd()
+        assert profile.blueprint_id == "crkd_les_paul"
+        assert "Les Paul" in profile.device_name
+        assert profile.product_id == 0x0883
+
+    def test_auto_detect_crkd_les_paul_helper(self):
+        profile = auto_detect_crkd_les_paul()
+        assert profile.blueprint_id == "crkd_les_paul"
+        assert "Les Paul" in profile.device_name
+        assert profile.product_id == 0x0883
+
+    def test_generate_les_paul_clone_hero_template(self):
+        profile = auto_detect_crkd_les_paul()
+        tpl = generate_crkd_template(profile, target_game="Clone Hero")
+        assert "Les Paul" in tpl.title
+        names = [b["name"] for b in tpl.group_source_bindings]
+        assert "Pickup / Star Power Switch" in names

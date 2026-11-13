@@ -28,13 +28,19 @@ CRKD_KNOWN_PIDS = {
     0x0880,  # CRKD NEO S Controller / Guitar Mode
     0x0881,  # CRKD Nitro Deck+
     0x0882,  # CRKD NEO S Pro Guitar edition
+    0x0883,  # CRKD Les Paul Pro Model
+    0x0884,  # CRKD Les Paul Pro (Wireless 2.4GHz)
     0x0885,  # CRKD Neo Classic
+    0x0886,  # CRKD Pro Series Guitar
+    0x0150,  # CRKD Les Paul Pro Edition
+    0x0151,  # CRKD Les Paul Pro USB Mode
 }
 
 # Alternate vendor IDs for third-party guitars (RedOctane, Harmonix, PDP, etc.)
 GUITAR_VENDOR_PIDS: set[tuple[int, int]] = {
     (0x1430, 0x4748),  # RedOctane Guitar Hero X-plorer
-    (0x12BA, 0x0100),  # RedOctane PS3 Guitar Hero
+    (0x12BA, 0x0100),  # RedOctane PS3 Guitar Hero Les Paul
+    (0x1430, 0x0719),  # Xbox 360 Wireless Les Paul Receiver
     (0x1BAD, 0x0002),  # Harmonix Rock Band Guitar (Xbox 360)
     (0x12BA, 0x0200),  # Harmonix Rock Band Guitar (PS3)
     (0x0E6F, 0x0170),  # PDP Riffmaster (Xbox)
@@ -43,6 +49,10 @@ GUITAR_VENDOR_PIDS: set[tuple[int, int]] = {
 
 GUITAR_NAME_PATTERNS = [
     "crkd",
+    "les paul",
+    "lespaul",
+    "lp pro",
+    "crkd pro",
     "guitar",
     "riffmaster",
     "x-plorer",
@@ -58,9 +68,10 @@ GUITAR_NAME_PATTERNS = [
 class CRKDGuitarProfile:
     """Hardware profile and mapping configuration for a guitar controller."""
     device_path: str = ""
-    device_name: str = "CRKD NEO S Pro Guitar"
+    device_name: str = "CRKD Les Paul Pro Model"
     vendor_id: int = CRKD_VENDOR_ID
-    product_id: int = 0x0882
+    product_id: int = 0x0883
+    blueprint_id: str = "crkd_les_paul"
 
     # Fret buttons mapped to evdev key codes (or code names)
     fret_green: str = "BTN_SOUTH"      # Green / A
@@ -86,6 +97,13 @@ class CRKDGuitarProfile:
     whammy_axis: str = "ABS_RZ"
     tilt_axis: str = "ABS_Y"
 
+    # Les Paul Pro specific controls
+    pickup_toggle: str = "BTN_MODE"     # Rhythm/Treble switch -> Star Power / Layer
+    knob_vol_neck: str = "ABS_RX"       # Rotary knob 1
+    knob_vol_bridge: str = "ABS_RY"     # Rotary knob 2
+    knob_tone_neck: str = "ABS_Z"       # Rotary knob 3
+    knob_tone_bridge: str = "ABS_RZ"    # Rotary knob 4
+
     # Navigation / Menu buttons
     dpad_up: str = "BTN_DPAD_UP"
     dpad_down: str = "BTN_DPAD_DOWN"
@@ -105,6 +123,7 @@ class CRKDGuitarProfile:
             "device_name": self.device_name,
             "vendor_id": f"0x{self.vendor_id:04x}",
             "product_id": f"0x{self.product_id:04x}",
+            "blueprint_id": self.blueprint_id,
             "fret_buttons": {
                 "green": self.fret_green,
                 "red": self.fret_red,
@@ -119,6 +138,13 @@ class CRKDGuitarProfile:
             },
             "whammy_axis": self.whammy_axis,
             "tilt_axis": self.tilt_axis,
+            "pickup_toggle": self.pickup_toggle,
+            "speed_knobs": {
+                "vol_neck": self.knob_vol_neck,
+                "vol_bridge": self.knob_vol_bridge,
+                "tone_neck": self.knob_tone_neck,
+                "tone_bridge": self.knob_tone_bridge,
+            },
             "dpad": {
                 "up": self.dpad_up,
                 "down": self.dpad_down,
@@ -137,11 +163,13 @@ class CRKDGuitarProfile:
         fb = data.get("fret_buttons", {})
         sb = data.get("strum_bar", {})
         dp = data.get("dpad", {})
+        sk = data.get("speed_knobs", {})
         return cls(
             device_path=data.get("device_path", ""),
-            device_name=data.get("device_name", "CRKD NEO S Pro Guitar"),
+            device_name=data.get("device_name", "CRKD Les Paul Pro Model"),
             vendor_id=int(str(data.get("vendor_id", "0x2E95")), 16) if isinstance(data.get("vendor_id"), str) else int(data.get("vendor_id", CRKD_VENDOR_ID)),
-            product_id=int(str(data.get("product_id", "0x0882")), 16) if isinstance(data.get("product_id"), str) else int(data.get("product_id", 0x0882)),
+            product_id=int(str(data.get("product_id", "0x0883")), 16) if isinstance(data.get("product_id"), str) else int(data.get("product_id", 0x0883)),
+            blueprint_id=data.get("blueprint_id", "crkd_les_paul"),
             fret_green=fb.get("green", "BTN_SOUTH"),
             fret_red=fb.get("red", "BTN_EAST"),
             fret_yellow=fb.get("yellow", "BTN_NORTH"),
@@ -152,6 +180,11 @@ class CRKDGuitarProfile:
             strum_down=sb.get("down", "BTN_DPAD_DOWN"),
             whammy_axis=data.get("whammy_axis", "ABS_RZ"),
             tilt_axis=data.get("tilt_axis", "ABS_Y"),
+            pickup_toggle=data.get("pickup_toggle", "BTN_MODE"),
+            knob_vol_neck=sk.get("vol_neck", "ABS_RX"),
+            knob_vol_bridge=sk.get("vol_bridge", "ABS_RY"),
+            knob_tone_neck=sk.get("tone_neck", "ABS_Z"),
+            knob_tone_bridge=sk.get("tone_bridge", "ABS_RZ"),
             dpad_up=dp.get("up", "BTN_DPAD_UP"),
             dpad_down=dp.get("down", "BTN_DPAD_DOWN"),
             dpad_left=dp.get("left", "BTN_DPAD_LEFT"),
@@ -172,6 +205,15 @@ def is_crkd_or_guitar_device(dev: DeviceInfo) -> bool:
         return True
     name_lower = dev.name.lower()
     return any(p in name_lower for p in GUITAR_NAME_PATTERNS)
+
+
+def auto_detect_crkd_les_paul() -> CRKDGuitarProfile:
+    """Return a dedicated profile configured for the CRKD Les Paul Pro Model."""
+    profile = auto_detect_crkd()
+    profile.device_name = "CRKD Les Paul Pro Model"
+    profile.blueprint_id = "crkd_les_paul"
+    profile.product_id = 0x0883
+    return profile
 
 
 def auto_detect_crkd() -> CRKDGuitarProfile:
@@ -239,6 +281,15 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
     elif "ABS_Y" in abs_caps:
         profile.tilt_axis = "ABS_Y"
 
+    # Match Les Paul Pro Model or specific guitar variant
+    name_lower = matched_dev.name.lower()
+    if "les paul" in name_lower or "lespaul" in name_lower or "lp pro" in name_lower or matched_dev.product_id in {0x0883, 0x0884, 0x0150, 0x0151}:
+        profile.blueprint_id = "crkd_les_paul"
+        profile.device_name = matched_dev.name if ("les paul" in name_lower or "crkd" in name_lower) else "CRKD Les Paul Pro Model"
+    elif "neo s" in name_lower or matched_dev.product_id == 0x0882:
+        profile.blueprint_id = "crkd_guitar"
+        profile.device_name = "CRKD NEO S Pro Guitar"
+
     # Configure whammy normalizer and tilt calibrator defaults
     profile.whammy_normalizer = WhammyNormalizer(raw_min=-32768, raw_max=32767, rest_value=-32768)
     profile.tilt_calibrator = TiltThresholdCalibrator(activation_threshold=0.65)
@@ -275,10 +326,13 @@ def generate_crkd_template(
 
 def _build_clone_hero_template(profile: CRKDGuitarProfile) -> VDFTemplate:
     """Clone Hero mapping: direct keyboard keys or standard XInput."""
-    title = f"CRKD Neo S - Clone Hero ({profile.device_name})"
+    is_lp = profile.blueprint_id == "crkd_les_paul" or "les paul" in profile.device_name.lower()
+    prefix = "CRKD Les Paul Pro" if is_lp else "CRKD Neo S"
+    title = f"{prefix} - Clone Hero ({profile.device_name})"
     description = (
-        "Zero-latency profile for Clone Hero. Frets mapped to standard keyboard keys "
-        "(A, S, J, K, L) and strum to Up/Down arrows. Whammy on right stick Y, Star Power on Space."
+        f"Zero-latency profile for Clone Hero on {profile.device_name}. "
+        "Frets mapped to standard keyboard keys (A, S, J, K, L) and strum to Up/Down arrows. "
+        "Whammy on right stick Y, Star Power on Space & Pickup Toggle."
     )
 
     bindings = [
@@ -294,6 +348,14 @@ def _build_clone_hero_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         {"name": "Start", "input": profile.start_button, "output": "key_press RETURN", "mode": "RegularPress"},
         {"name": "Select", "input": profile.select_button, "output": "key_press ESCAPE", "mode": "RegularPress"},
     ]
+
+    if is_lp and profile.pickup_toggle:
+        bindings.append({
+            "name": "Pickup / Star Power Switch",
+            "input": profile.pickup_toggle,
+            "output": "key_press SPACE",
+            "mode": "RegularPress",
+        })
 
     action_sets = [{
         "name": "InGame",

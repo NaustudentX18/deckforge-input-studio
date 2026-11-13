@@ -32,7 +32,7 @@ from .calibration import (
     TiltThresholdCalibrator,
     WhammyNormalizer,
 )
-from .crkd_profiler import auto_detect_crkd, generate_crkd_template
+from .crkd_profiler import auto_detect_crkd, auto_detect_crkd_les_paul, generate_crkd_template
 from .gp2040_profiler import auto_detect_gp2040, generate_gp2040_template
 from .midi_sniffer import MidiEventStream, list_midi_devices
 from .security import (
@@ -510,6 +510,18 @@ async def list_presets() -> list[dict[str, Any]]:
     """List preset generators."""
     return [
         {
+            "id": "crkd_les_paul_clone_hero",
+            "name": "CRKD Les Paul Pro - Clone Hero",
+            "description": "Zero-latency mechanical fret, pickup Star Power switch & strum mapping for Clone Hero",
+            "target": "Clone Hero",
+        },
+        {
+            "id": "crkd_les_paul_yarg",
+            "name": "CRKD Les Paul Pro - YARG",
+            "description": "Single-cutaway Les Paul Pro layout with whammy half-axis normalization and speed knobs",
+            "target": "YARG",
+        },
+        {
             "id": "crkd_clone_hero",
             "name": "CRKD Neo S - Clone Hero",
             "description": "Zero-latency mechanical fret & strum mapping for Clone Hero",
@@ -540,11 +552,15 @@ async def list_presets() -> list[dict[str, Any]]:
 async def apply_preset(name: str, req: PresetApplyRequest) -> dict[str, Any]:
     """Apply a preset generator and save it as an active template."""
     try:
-        profile = auto_detect_crkd()
+        name_lower = name.lower()
+        if "les_paul" in name_lower or "lp" in name_lower:
+            profile = auto_detect_crkd_les_paul()
+        else:
+            profile = auto_detect_crkd()
+
         target_game = req.target_game or "Clone Hero"
 
         # Check name mapping
-        name_lower = name.lower()
         if "yarg" in name_lower:
             target_game = "YARG"
         elif "rb4" in name_lower or "rpcs3" in name_lower:

@@ -7,6 +7,7 @@ import {
   KeyboardMacropad,
   BlankCanvas,
   CRKDGuitar,
+  CRKDLesPaulPro,
   RiffstickGuitar,
 } from './hardware';
 import { MappingEditor } from './MappingEditor';
@@ -103,8 +104,9 @@ export const FullStudio: React.FC = () => {
     canRedo,
   } = useVDFTemplate();
 
-  // Pick blueprint by device or template type
-  const blueprintType = activeTemplate?.metadata.deviceBlueprintId || 'steam_deck';
+  // Pick blueprint by device or template type (with manual override support)
+  const [blueprintOverride, setBlueprintOverride] = useState<string | null>(null);
+  const blueprintType = blueprintOverride || activeTemplate?.metadata.deviceBlueprintId || 'steam_deck';
 
   // Apply binding from MappingEditor
   const handleApplyBinding = (binding: BindingConfig) => {
@@ -169,6 +171,10 @@ export const FullStudio: React.FC = () => {
     };
 
     switch (blueprintType) {
+      case 'crkd_les_paul':
+      case 'crkd_pro_les_paul':
+      case 'les_paul':
+        return <CRKDLesPaulPro {...commonProps} />;
       case 'guitar':
         return <GuitarController {...commonProps} />;
       case 'crkd_guitar':
@@ -256,6 +262,32 @@ export const FullStudio: React.FC = () => {
                 </option>
               ))
             )}
+          </select>
+
+          {/* Blueprint Chassis Selector */}
+          <select
+            value={blueprintType}
+            onChange={(e) => setBlueprintOverride(e.target.value)}
+            style={{
+              padding: '4px 10px',
+              backgroundColor: '#181928',
+              border: '1px solid #d97706',
+              borderRadius: '4px',
+              color: '#f59e0b',
+              fontSize: '12px',
+              fontWeight: 600,
+            }}
+            title="Switch Active Hardware Blueprint"
+          >
+            <option value="steam_deck">🎮 Steam Deck (Neptune)</option>
+            <option value="crkd_les_paul">🎸 CRKD Les Paul Pro Model</option>
+            <option value="crkd_guitar">🎸 CRKD NEO S Pro Guitar</option>
+            <option value="riffstick">🎸 GP2040-CE / RP2040 Riffstick</option>
+            <option value="guitar">🎸 Standard Guitar Hero / RB</option>
+            <option value="drum_kit">🥁 USB-MIDI Drum Kit</option>
+            <option value="fightstick">🕹️ Arcade Fightstick</option>
+            <option value="macropad">⌨️ Mechanical Macropad</option>
+            <option value="blank">🎛️ Raw HID Canvas</option>
           </select>
 
           {/* Quick Bind Button */}
