@@ -77,6 +77,12 @@ class DeviceInfo:
     capabilities: dict[str, list[str]]
     bus_type: str
     by_id_path: Optional[str] = None
+    # USB string descriptors, when readable. These matter because some devices
+    # deliberately impersonate another vendor's ids: the CRKD guitar presents as
+    # 045e:028e (a Microsoft Xbox 360 pad) but its string descriptors still say
+    # manufacturer="CRKD", product="CRKD Guitar". The id alone cannot identify it.
+    usb_manufacturer: str = ""
+    usb_product: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -90,6 +96,8 @@ class DeviceInfo:
             "capabilities": self.capabilities,
             "bus_type": self.bus_type,
             "by_id_path": self.by_id_path,
+            "usb_manufacturer": self.usb_manufacturer,
+            "usb_product": self.usb_product,
         }
 
 
@@ -151,6 +159,33 @@ def _capability_map(device: InputDevice) -> dict[str, list[str]]:
     return caps
 
 
+def _read_usb_strings(device_path: str) -> tuple[str, str]:
+    """Return (manufacturer, product) from the USB descriptors behind *device_path*.
+
+    Walks up sysfs from the evdev node to the first ancestor with an
+    ``idVendor`` file. Cheap and dependency-free, and the only reliable way to
+    identify a device that spoofs another vendor's ids -- which the CRKD guitar
+    does (it presents as 045e:028e/"Microsoft X-Box 360 pad" while its strings
+    still say CRKD).
+    """
+    try:
+        node = Path(os.path.realpath(f"/sys/class/input/{Path(device_path).name}/device"))
+    except OSError:
+        return "", ""
+    for _ in range(5):
+        if (node / "idVendor").is_file():
+            def _read(name: str) -> str:
+                try:
+                    return (node / name).read_text(encoding="utf-8", errors="replace").strip()
+                except OSError:
+                    return ""
+            return _read("manufacturer"), _read("product")
+        if node.parent == node:
+            break
+        node = node.parent
+    return "", ""
+
+
 def discover_devices() -> list[DeviceInfo]:
     """Enumerate all evdev input devices and return their full descriptions."""
     devices: list[DeviceInfo] = []
@@ -169,6 +204,7 @@ def discover_devices() -> list[DeviceInfo]:
             vendor_id = 0
             product_id = 0
             bus_id = 0
+        _usb_manufacturer, _usb_product = _read_usb_strings(dev.path)
         devices.append(DeviceInfo(
             path=dev.path,
             name=dev.name or "",
@@ -180,6 +216,8 @@ def discover_devices() -> list[DeviceInfo]:
             capabilities=_capability_map(dev),
             bus_type=_bus_type_name(bus_id),
             by_id_path=_resolve_by_id(dev.path),
+            usb_manufacturer=_usb_manufacturer,
+            usb_product=_usb_product,
         ))
         dev.close()
     return devices

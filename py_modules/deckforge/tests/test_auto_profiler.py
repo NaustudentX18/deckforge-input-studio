@@ -186,6 +186,50 @@ class TestIdentityTable:
         assert lookup_identity(0xFFFF, 0xEEEE) is None
 
 
+class TestAxisRestGuard:
+    """An axis that rests at its minimum is a one-sided edge, not a held control.
+
+    Measured on the CRKD Les Paul: ABS_HAT0X spans -1..1 but sits at -1 at rest.
+    Binding it as tilt would leave star power permanently pressed.
+    """
+
+    def test_rest_at_minimum_is_not_centred(self):
+        from deckforge.auto_profiler import Fingerprint, detect_device, generate_profile
+
+        dev = make_device(
+            "/dev/input/event9", "CRKD Gamepad", 0x045E, 0x028E,
+            keys=["BTN_SOUTH", "BTN_EAST", "BTN_NORTH", "BTN_WEST", "BTN_TL",
+                  "BTN_START", "BTN_SELECT"],
+            abs_=["ABS_Z", "ABS_RZ", "ABS_RY", "ABS_HAT0X", "ABS_HAT0Y"],
+        )
+        det = detect_device(dev)
+        # Inject the measured rest positions (no real device in CI).
+        det.fingerprint.axis_rest = {
+            "ABS_RY": (-32768, 32767, 0),      # centred -> usable
+            "ABS_HAT0X": (-1, 1, -1),          # rests at minimum -> unusable
+            "ABS_Z": (0, 255, 0),
+        }
+        profile = generate_profile(det, "clone_hero")
+        sources = {b["sourceCode"] for b in profile.template.bindings()}
+        assert "ABS_RY" in sources, "a centred axis should be chosen for tilt"
+        assert "ABS_HAT0X" not in sources, "an axis resting at its minimum must not bind tilt"
+
+    def test_unbindable_tilt_is_reported_not_silent(self):
+        from deckforge.auto_profiler import detect_device, generate_profile
+
+        dev = make_device(
+            "/dev/input/event9", "CRKD Gamepad", 0x045E, 0x028E,
+            keys=["BTN_SOUTH", "BTN_EAST", "BTN_NORTH", "BTN_WEST", "BTN_TL",
+                  "BTN_START", "BTN_SELECT"],
+            abs_=["ABS_Z", "ABS_RZ", "ABS_HAT0X", "ABS_HAT0Y"],
+        )
+        det = detect_device(dev)
+        det.fingerprint.axis_rest = {"ABS_HAT0X": (-1, 1, -1)}
+        profile = generate_profile(det, "clone_hero")
+        assert any("tilt" in n.lower() for n in profile.notes), \
+            "an unbound tilt must be explained in the notes"
+
+
 class TestIdleWirelessReceiver:
     """A 2.4 GHz receiver enumerates even with the instrument switched off.
 

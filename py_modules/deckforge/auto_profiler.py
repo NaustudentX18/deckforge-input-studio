@@ -100,6 +100,10 @@ class Fingerprint:
     # because BTN_C/BTN_Z/BTN_THUMB are also keyboard-scan codes.
     key_codes: int = 0
     rel_axes: int = 0
+    # axis name -> (min, max, rest value). Rest position matters: an axis whose
+    # rest equals its minimum is a one-sided edge, and binding it as a held
+    # control would latch it on permanently.
+    axis_rest: dict[str, tuple[int, int, int]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -114,6 +118,7 @@ class Fingerprint:
             "button_count": self.button_count,
             "axis_count": self.axis_count,
             "key_codes": self.key_codes,
+            "axis_rest": {k: list(v) for k, v in self.axis_rest.items()},
         }
 
 
@@ -150,6 +155,33 @@ def _flatten_caps(capabilities: dict[str, Any]) -> tuple[set[str], set[str]]:
     return buttons, axes, key_codes, rel_axes
 
 
+def _read_axis_rest(device_path: str) -> dict[str, tuple[int, int, int]]:
+    """Read (min, max, rest) for every absolute axis on the device.
+
+    Best-effort: the device may have gone away, or the node may be unreadable.
+    """
+    try:
+        import evdev  # local import keeps module import cheap
+        dev = evdev.InputDevice(device_path)
+    except Exception:
+        return {}
+    try:
+        caps = dev.capabilities(absinfo=True)
+        out: dict[str, tuple[int, int, int]] = {}
+        for code, info in caps.get(evdev.ecodes.EV_ABS, []):
+            name = evdev.ecodes.bytype[evdev.ecodes.EV_ABS].get(code)
+            if name:
+                out[str(name)] = (int(info.min), int(info.max), int(info.value))
+        return out
+    except Exception:
+        return {}
+    finally:
+        try:
+            dev.close()
+        except Exception:
+            pass
+
+
 def fingerprint_device(device: Any) -> Fingerprint:
     """Reduce a DeviceInfo to a Fingerprint."""
     caps = getattr(device, "capabilities", {}) or {}
@@ -174,6 +206,7 @@ def fingerprint_device(device: Any) -> Fingerprint:
         axis_count=len(axes),
         key_codes=key_codes,
         rel_axes=rel_axes,
+        axis_rest=_read_axis_rest(str(getattr(device, "path", "") or "")),
     )
 
 
@@ -208,6 +241,8 @@ class Detection:
     # Built-in knowledge for this device, when we recognise the family.
     family_id: Optional[str] = None
     family_name: Optional[str] = None
+    usb_manufacturer: str = ""
+    usb_product: str = ""
     setup_notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -225,6 +260,8 @@ class Detection:
             "reserved": self.reserved,
             "family_id": self.family_id,
             "family_name": self.family_name,
+            "usb_manufacturer": self.usb_manufacturer,
+            "usb_product": self.usb_product,
             "setup_notes": self.setup_notes,
             "fingerprint": self.fingerprint.to_dict() if self.fingerprint else None,
         }
@@ -338,7 +375,11 @@ def detect_device(device: Any) -> Detection:
     sdl_type = identity.get("sdl_type") if identity else None
     schema = identity.get("steam_schema", "generic") if identity else "generic"
 
-    family = find_family(vendor, product, name)
+    usb_manufacturer = str(getattr(device, "usb_manufacturer", "") or "")
+    usb_product = str(getattr(device, "usb_product", "") or "")
+    # USB strings outrank the ids: the CRKD guitar spoofs 045e:028e, so ids alone
+    # cannot tell it from a real Xbox 360 pad.
+    family = find_family(vendor, product, name, usb_manufacturer, usb_product)
     kind, confidence, reason = classify(fp, name, sdl_type, vendor, product)
 
     # A recognised family outranks a capability guess. KeyJam (mode 9) makes this
@@ -388,6 +429,8 @@ def detect_device(device: Any) -> Detection:
         reserved=reserved,
         family_id=family.family_id if family else None,
         family_name=family.display_name if family else None,
+        usb_manufacturer=usb_manufacturer,
+        usb_product=usb_product,
         setup_notes=list(family.setup_notes) if family else [],
     )
 
@@ -451,12 +494,56 @@ def generate_profile(detection: Detection, target_game: str = "clone_hero") -> A
                     "Solo fret row detected; mapped through the back-grip slots "
                     "because Steam's schema has no solo-strip group."
                 )
-            if not fp.has_dpad and fp.has_hat:
+            # Strum: prefer real d-pad buttons when the device has them, else the
+            # hat axis the measured CRKD uses.
+            if fp.has_dpad and {"BTN_DPAD_UP", "BTN_DPAD_DOWN"} <= fp.buttons:
+                profile.strum_up = "BTN_DPAD_UP"
+                profile.strum_down = "BTN_DPAD_DOWN"
+            elif fp.has_hat or {"ABS_HAT0Y"} <= fp.axes:
                 profile.strum_up = "ABS_HAT0Y_NEG"
                 profile.strum_down = "ABS_HAT0Y_POS"
                 notes.append("Strum bar is a hat axis, so it maps onto the d-pad group.")
-            if "ABS_Z" in fp.axes and "ABS_RZ" not in fp.axes:
+
+            # Whammy: the profile default is ABS_RZ (a generic 360 assumption).
+            # Prefer whatever this device actually exposes; ABS_Z is what the
+            # measured CRKD uses, and binding the wrong axis means a dead whammy.
+            if {"ABS_Z", "ABS_RZ"} <= fp.axes:
                 profile.whammy_axis = "ABS_Z"
+                notes.append("Whammy mapped to ABS_Z (this device exposes both Z and RZ).")
+            elif "ABS_RZ" in fp.axes:
+                profile.whammy_axis = "ABS_RZ"
+            elif "ABS_Z" in fp.axes:
+                profile.whammy_axis = "ABS_Z"
+
+            # Tilt. Prefer an axis that rests at CENTRE. Measured on this
+            # hardware: ABS_HAT0X spans -1..1 but sits at **-1 at rest**, so
+            # binding it would leave star power permanently held. Anything whose
+            # rest position equals its minimum is a one-sided edge, not a tilt,
+            # and must not be bound blindly.
+            rest_positions = getattr(fp, "axis_rest", {}) or {}
+            def _rests_centred(name: str) -> bool:
+                info = rest_positions.get(name)
+                if not info:
+                    return False
+                lo, hi, rest = info
+                # Centred means rest is strictly inside (lo, hi).
+                return lo < rest < hi
+
+            if "ABS_RY" in fp.axes and _rests_centred("ABS_RY"):
+                profile.tilt_axis = "ABS_RY"
+            elif "ABS_HAT0X" in fp.axes and _rests_centred("ABS_HAT0X"):
+                profile.tilt_axis = "ABS_HAT0X"
+                notes.append(
+                    "Tilt is a hat edge on this device, so it behaves as a switch "
+                    "rather than a smooth axis."
+                )
+            else:
+                notes.append(
+                    "No tilt axis rests at centre on this device, so tilt was left "
+                    "unbound rather than mapped to an axis that would hold star "
+                    "power down permanently."
+                )
+                profile.tilt_axis = ""
             profile.blueprint_id = "crkd_les_paul" if "crkd" in detection.name.lower() else "guitar"
         template = generate_crkd_template(profile, target_game=game)
         template.title = f"Auto · {detection.name or 'Guitar'} · {game}"

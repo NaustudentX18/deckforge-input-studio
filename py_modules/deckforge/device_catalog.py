@@ -94,12 +94,27 @@ class ControllerFamily:
     # Things a user must do on the hardware for a profile to work.
     setup_notes: tuple[str, ...] = field(default_factory=tuple)
 
-    def matches(self, vendor_id: int, product_id: int, name: str) -> bool:
+    def matches(self, vendor_id: int, product_id: int, name: str,
+                usb_manufacturer: str = "", usb_product: str = "") -> bool:
+        """Does this family describe the device?
+
+        USB *string descriptors* are checked first and are the strongest signal,
+        because a device can lie about its ids but rarely about its strings. The
+        CRKD guitar presents as ``045e:028e`` -- a Microsoft Xbox 360 pad, and
+        every one of those is in the wild -- while its descriptors still read
+        manufacturer="CRKD", product="CRKD Guitar". Matching on ids alone would
+        either miss the guitar entirely or claim every 360 pad is one.
+        """
+        haystack = " ".join(
+            part for part in (usb_manufacturer, usb_product, name) if part
+        ).lower()
+        if usb_manufacturer or usb_product:
+            if any(pattern in haystack for pattern in self.name_patterns):
+                return True
         if self.vendor_ids and vendor_id in self.vendor_ids:
             if not self.product_ids or product_id in self.product_ids:
                 return True
-        lower = (name or "").lower()
-        return any(pattern in lower for pattern in self.name_patterns)
+        return any(pattern in (name or "").lower() for pattern in self.name_patterns)
 
 
 # ===================================================================
@@ -151,7 +166,7 @@ CRKD_LES_PAUL = ControllerFamily(
         0x4161,                             # 3651 Xbox One
         0x0882, 0x0883, 0x0884, 0x0150, 0x0151,  # documented / legacy range
     ),
-    name_patterns=("crkd guitar", "crkd gamepad", "les paul"),
+    name_patterns=("crkd guitar", "crkd gamepad", "crkd", "les paul"),
     kind="guitar",
     source=(
         "crkd.gg product page, CRKD CK25GM user guide, CRKD firmware v2.0 notes, "
@@ -179,10 +194,11 @@ CRKD_LES_PAUL = ControllerFamily(
 KNOWN_FAMILIES: tuple[ControllerFamily, ...] = (CRKD_LES_PAUL,)
 
 
-def find_family(vendor_id: int, product_id: int, name: str) -> Optional[ControllerFamily]:
+def find_family(vendor_id: int, product_id: int, name: str,
+                usb_manufacturer: str = "", usb_product: str = "") -> Optional[ControllerFamily]:
     """Match a device against the built-in families."""
     for family in KNOWN_FAMILIES:
-        if family.matches(vendor_id, product_id, name):
+        if family.matches(vendor_id, product_id, name, usb_manufacturer, usb_product):
             return family
     return None
 
