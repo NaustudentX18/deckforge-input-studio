@@ -1,317 +1,226 @@
 <div align="center">
 
-<img src="assets/svg/deckforge-logo.svg" alt="DeckForge Input Studio Logo" width="160" height="160" />
+<img src="assets/svg/deckforge-logo.svg" alt="DeckForge Input Studio" width="120" height="120" />
 
 # DeckForge Input Studio
-### Universal Visual Controller Mapper & Steam Input VDF Template Generator for Steam Deck
 
-[![SteamOS Ready](https://img.shields.io/badge/SteamOS-3.0%2B%20Gaming%20Mode-blue?logo=steam&logoColor=white)](https://store.steampowered.com/steamos)
-[![Decky Loader](https://img.shields.io/badge/Decky%20Loader-Plugin-blueviolet?logo=valve&logoColor=white)](https://decky.xyz)
-[![Python](https://img.shields.io/badge/Python-3.14%20(cp314)-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-77%2F77%20Passing-brightgreen?logo=pytest&logoColor=white)](https://docs.pytest.org/)
-[![License](https://img.shields.io/badge/License-GPL--2.0--or--later-orange.svg)](LICENSE)
+**Map any controller. Get a real Steam Input profile.**
+
+Stop hand-editing VDFs that Steam silently ignores. Plug in a guitar, a pad, a
+drum kit or a fightstick — DeckForge works out what it is, builds a profile that
+matches its actual controls, and publishes it where SteamOS really reads it.
+
+[![Release](https://img.shields.io/github/v/release/NaustudentX18/deckforge-input-studio?style=for-the-badge&color=e94560&logo=github)](https://github.com/NaustudentX18/deckforge-input-studio/releases)
+[![SteamOS](https://img.shields.io/badge/SteamOS-3.x-1a9fff?style=for-the-badge&logo=steam)](https://store.steampowered.com/steamos)
+[![Decky](https://img.shields.io/badge/Decky-v3.x-8a2be2?style=for-the-badge)](https://decky.xyz)
+[![PWA](https://img.shields.io/badge/PWA-installable-5a0fc8?style=for-the-badge)](#-also-a-web-app)
+[![Tests](https://img.shields.io/badge/tests-128%20passing-34d399?style=for-the-badge)](https://github.com/NaustudentX18/deckforge-input-studio/actions)
+[![License](https://img.shields.io/badge/license-GPL--2.0-orange?style=for-the-badge)](LICENSE)
+
+**[Install](#-install)** · **[Screenshots](#-what-it-looks-like)** · **[One-click profiles](#-one-click-profiles)** · **[Why it's hard](#-why-this-is-harder-than-it-looks)** · **[Docs](LAUNCH.md)**
 
 </div>
 
 ---
 
-**DeckForge Input Studio** is an interactive controller mapping application and Steam Input VDF template compiler designed specifically for SteamOS (Steam Deck) and remote workstations. It allows you to connect any physical input device—custom 3D-printed microcontrollers (RP2040 / GP2040-CE), rhythm game guitars (CRKD NEO S, Riffmaster, X-plorer), electronic USB-MIDI drum kits, fightsticks, macropads, or standard gamepads—visually map every axis, button, hat switch, and tilt/whammy sensor via an interactive SVG canvas, and compile those mappings directly into native Steam Input `.vdf` configuration templates that appear seamlessly inside Steam Gaming Mode's Controller Configurator.
+## What it looks like
+
+<table>
+<tr>
+<td width="50%">
+
+**Auto-profile your guitar**
+
+Every physical control, live, with click-to-bind.
+
+</td>
+<td width="50%">
+
+**Profiles, assigned and synced**
+
+Written where Steam actually reads them.
+
+</td>
+</tr>
+<tr>
+<td><img src="static/shots/studio-mappings.jpg" alt="Studio showing a CRKD Les Paul blueprint with live input highlighting"></td>
+<td><img src="static/shots/studio-profiles.jpg" alt="Profiles tab listing base templates and local profiles with assign and export actions"></td>
+</tr>
+<tr>
+<td>
+
+**Live input monitor**
+
+Raw evdev events, normalised, with jitter.
+
+</td>
+<td>
+
+**Per-axis calibration**
+
+Deadzones, response curves, debounce, whammy/tilt.
+
+</td>
+</tr>
+<tr>
+<td><img src="static/shots/studio-monitor.jpg" alt="Live input monitor showing buttons, axes and hats from the connected device"></td>
+<td><img src="static/shots/studio-calibration.jpg" alt="Axis calibration panel with deadzone sliders and a linear response curve graph"></td>
+</tr>
+</table>
+
+<details>
+<summary><b>More screenshots — one-click profiles, hardware reference, mobile</b></summary>
+
+<br>
+
+| One-click profiles | Hardware & Mode Dial |
+|---|---|
+| <img src="static/shots/landing-profiles.jpg" alt="One-click profile cards for Clone Hero, YARG, Fortnite Festival and Rock Band 4"> | <img src="static/shots/landing-hardware.jpg" alt="CRKD Les Paul specifications and the nine-position Mode Dial reference"> |
+
+| Game compatibility | Mobile (PWA) |
+|---|---|
+| <img src="static/shots/landing-games.jpg" alt="Game compatibility matrix across platforms and rhythm games"> | <img src="static/shots/landing-mobile.jpg" alt="The same interface on a phone, using a bottom navigation bar" width="260"> |
+
+</details>
 
 ---
 
-## 🌟 Key Features
+## ✨ Features
 
-### 1. Dual-Mode Deployment
-* **Decky Loader Plugin (`deckforge-input-studio`)**: Designed for native 1280×800 touch and gamepad navigation inside Steam Gaming Mode. Features a Quick Access Menu (QAM) sidebar panel for quick profile switching, live monitoring, and active template injection, plus a full-screen studio route registered at `/deckforge`.
-* **Standalone Web Studio (`0.0.0.0:8765`)**: Built-in FastAPI + WebSocket server accessible wirelessly over **Tailscale** (`http://<steamdeck-ip>:8765/`). Map complex multi-layer configurations on a tablet or second monitor while simultaneously testing live input on the Deck.
-* **Installable PWA for phones and tablets**: served over HTTPS (e.g. `tailscale serve`), the studio installs to an Android/iOS home screen and runs offline with a cached app shell. The phone layout swaps the sidebar for a four-item bottom bar plus a "More" sheet, turns the binding editor into a bottom sheet, respects safe-area insets, and keeps every touch target at least 44px.
-
-### 2. Smart Auto-Profiler
-One press identifies the connected hardware and builds, saves and publishes a matching Steam Input profile — no manual mapping to get started.
-
-It does not trust the mainstream database, because that database is wrong for the hardware this app cares about most. Verified against upstream SDL on 2026-11-14:
-
-* SDL's `controller_list.h` classifies `20bc:5500` — the id a CRKD-labelled unit actually reported — as **`k_eControllerType_PS3Controller`** — a plain PS3 pad. That id is not CRKD's; it belongs to the ShanWan bridge chip.
-* SDL's `gamecontrollerdb.txt` contains **zero** rhythm-guitar entries.
-
-So identity is resolved in layers, strongest evidence first:
-
-1. **Capability fingerprint** — the inputs the device physically reports. A guitar has a solo-fret row and no analog-stick pair; a fightstick has 8+ buttons and no sticks; a keyboard has `KEY_*` codes where a controller has `BTN_*`. This is measured from evdev, not inferred from a name.
-2. **Vendored SDL identity table** (613 devices) — names and classifies gamepads.
-3. **Name heuristics** — last resort.
-
-Devices are then rejected unless they are genuinely controllable, which matters: a laptop keyboard's media keys emit `BTN_C`/`BTN_Z`, and a mouse carries five `BTN_*` codes. Without explicit gates on `KEY_*`/`REL_*` counts and pointer axes, both look like a guitar. Steam's own virtual pads (`0x28DE`, virtual bus) are marked reserved and never auto-remapped.
-
-The result is compiled through the same Steam VDF compiler as everything else, so "auto" produces a real, loadable config — and reports exactly which controls Steam's schema could not express rather than failing silently.
-
-### 3. 8 Interactive Hardware Blueprints
-Visual vector chassis where physical inputs illuminate in real time and clicking any element opens its binding inspector:
-* **CRKD Les Paul Pro Model**: Iconic single-cutaway carved-top silhouette with gold multi-ply binding, Kailh/Cherry MX low profile mechanical frets, 5 solo tap frets, dual-microswitch clicky strum bar, authentic Rhythm/Treble Star Power toggle switch, 4 gold speed knobs (Neck/Bridge Volume & Tone dials), heavy-duty spring whammy bar with rotational arc gauge, and tri-mode 2.4GHz/BT/USB-C connectivity indicator. Auto-detected via Vendor ID `0x2E95` / Product ID `0x0883`.
-* **Steam Deck (`neptune`) & Standard Gamepad**: Full face controls, analog stick position dots, L2/R2 analog travel fill bars, rear grip buttons (L4/L5/R4/R5), dual trackpads with touch coordinates, and a 3D IMU gyro orientation wireframe.
-* **CRKD NEO S Pro Guitar**: Modern angular stealth guitar chassis, mechanical fret switches, solo frets, dual-switch spring-return strum bar, whammy half-axis normalization (`-32768..32767` → `0..1`), tilt Star Power activation, and battery/LED status gauges. Auto-detected via Vendor ID `0x2E95` / Product ID `0x0882`.
-* **GP2040-CE / RP2040 Riffstick**: 3D-printed modular guitar chassis (Raspberry Pi Pico VID `0x2E8A`), Cherry MX mechanical frets, rotary potentiometer whammy dial, and mercury/analog tilt sensor with one-click presets for Clone Hero and YARG.
-* **Electronic Drum Kits & Synthesizers**: Native USB-MIDI (`mido` & ALSA raw `/dev/snd/midi*`). Captures `note_on` events (velocity 1–127) and `control_change`. Visual drum pads pulse with intensity proportional to strike force.
-* **Arcade Fightstick & Leverless Hitbox**: 8-button arcade layout (punch and kick rows) with toggle between Sanwa JLF lever deflection and leverless Hitbox directional layout.
-* **Dynamic Keyboard & Macropad Matrix**: Dynamic $N \times M$ grid generator with rotary encoder visualizers (position arc + center push button).
-* **Universal Raw HID Canvas**: Auto-generates visual nodes for any unrecognized USB or Bluetooth controller's raw buttons (`BTN_0`..`BTN_31`) and analog axes (`ABS_X`..`ABS_RZ`).
-
-### 4. Native Steam Input VDF Compiler Engine
-* **Triple-Location Synchronization**: Writes atomically to all directories indexed by SteamOS Gaming Mode so templates appear instantly without being overwritten by Steam Cloud:
-  1. `~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/`
-  2. `~/.local/share/Steam/userdata/<USER_ID>/241100/remote/` (Steam Cloud Remote Sync)
-  3. `~/.local/share/Steam/userdata/<USER_ID>/config/controller_configs/templates/`
-  4. `~/.config/deckforge/templates/` (Master local vault with `.vdf` and `.json` metadata)
-* **Multi-Schema Variants**: Automatically compiles schemas for `controller_neptune`, `controller_xbox360`, `controller_ps4`, `controller_ps5`, and `controller_generic` so Steam never hides a template due to controller-type mismatch.
-* **Non-Steam Shortcut 64-bit CRC32 Matching**: Computes accurate Steam Big Picture 64-bit shortcut IDs (`((crc32(exe + appname) | 0x80000000) << 32) | 0x02000000`) and 32-bit legacy IDs, ensuring seamless binding to Non-Steam games (Clone Hero, YARG, RPCS3, PCSX2).
-
-### 5. Zero-Latency Engine & Safe Grab Watchdog
-* **60Hz+ evdev Event Bus**: High-frequency normalized input streaming with sub-15ms response.
-* **Fail-Safe Exclusive Grab**: "Press Any Button to Bind" features a strict **10-second auto-release watchdog**, instant abort hotkeys (`Escape` or `Steam + B`), and `try...finally` `ungrab()` recovery on controller disconnection (`ENODEV`), ensuring Steam UI navigation is never locked out.
-* **Calibration & Filtering**: Per-axis deadzone sliders (inner, outer, anti-deadzone), response curves (Linear, Aggressive, Relaxed, Custom Bezier), and mechanical switch debounce filters (Cherry MX strum/frets).
-
-### 6. Diagnostics & Hardware Benchmarks
-* **Polling Rate & Jitter**: Real-time polling frequency in Hz with sparkline history and standard deviation jitter measurement.
-* **Switch Bounce Histogram**: Microsecond-level interval recording for mechanical switch debounce tuning.
-* **Stick Circularity Test**: Polar coordinate scatter plot overlaying actual analog stick deflection against an ideal cardinal circle with error percentage.
-
-### 7. Security & Remote Pairing
-* **Subnet Guard**: Enforces Tailscale (`100.64.0.0/10`) and private LAN (`192.168.0.0/16`, `10.0.0.0/8`) access restrictions.
-* **PIN Authentication**: Optional 4-digit PIN protection configurable in QAM settings.
-* **Instant QR Code Pairing**: Scan the live vector QR code from the Steam Deck screen with your tablet or phone to pair immediately.
+| | |
+|---|---|
+| 🎯 **Smart auto-profiler** | One press identifies the hardware and builds a matching profile. Fingerprints what the device actually reports, because the mainstream databases are wrong here. |
+| 🎸 **Six one-click profiles** | Clone Hero, YARG, Fortnite Festival, Rock Band 4, Guitar Hero III, KeyJam — each with the Mode Dial position it requires. |
+| 🎛 **9 hardware blueprints** | Steam Deck, CRKD Les Paul, NEO S, GP2040-CE, generic guitar, drums, fightstick, macropad, raw HID. Inputs light up live. |
+| ⚙️ **Real Steam Input output** | Patches Valve's own skeleton, so Steam always gets a valid group-based config in `controller_base/templates/`. |
+| 📊 **Hardware diagnostics** | Polling rate, jitter, switch-bounce histogram, stick circularity. |
+| 📱 **PWA + mobile-first UI** | Installs to a phone or tablet home screen, works offline, bottom-bar navigation. |
 
 ---
 
-## 📦 System Architecture
+## 🎮 One-click profiles
 
-```
-                                  ┌──────────────────────────────┐
-                                  │   DeckForge Input Studio     │
-                                  └──────────────┬───────────────┘
-                                                 │
-                   ┌─────────────────────────────┴─────────────────────────────┐
-                   ▼                                                           ▼
-    ┌─────────────────────────────┐                             ┌─────────────────────────────┐
-    │  Steam Deck Gaming Mode     │                             │ Standalone Web Studio       │
-    │  Decky Loader Plugin        │                             │ (Tailscale / Remote LAN)    │
-    │  - QAM Panel (Sidebar)      │                             │ - 0.0.0.0:8765              │
-    │  - Full Studio (/deckforge) │                             │ - Phone / Tablet / Desktop  │
-    └──────────────┬──────────────┘                             └──────────────┬──────────────┘
-                   │ Decky RPC Bridge                                          │ REST / WebSockets
-                   └─────────────────────────────┬─────────────────────────────┘
-                                                 │
-                               ┌─────────────────▼─────────────────┐
-                               │     FastAPI + evdev Backend       │
-                               │  - input_sniffer.py (60Hz+ bus)   │
-                               │  - midi_sniffer.py (USB-MIDI)     │
-                               │  - calibration.py (Deadzone/Curve)│
-                               │  - vdf_manager.py (VDF Compiler)  │
-                               │  - gp2040_profiler.py (RP2040)    │
-                               │  - crkd_profiler.py (CRKD NEO S)  │
-                               │  - security.py (PIN & Subnet)     │
-                               └─────────────────┬─────────────────┘
-                                                 │
-                         ┌───────────────────────┴───────────────────────┐
-                         ▼                                               ▼
-         ┌───────────────────────────────┐               ┌───────────────────────────────┐
-         │     Steam Input Templates     │               │    Physical Input Devices     │
-         │ - Controller Configs/         │               │ - RP2040 / GP2040-CE Guitars  │
-         │ - userdata/<id>/241100/remote/│               │ - CRKD NEO S Pro Guitar       │
-         │ - ~/.config/deckforge/vault/  │               │ - Roland / Alesis MIDI Drums  │
-         │ - Multi-Schema: neptune/x360  │               │ - Sanwa Fightsticks / Hitbox  │
-         └───────────────────────────────┘               └───────────────────────────────┘
-```
+Each profile is a complete mapping for a specific game — not a generic template.
+The **Mode Dial position is part of the profile**, because for some games the
+bindings are meaningless without it.
+
+| Profile | Dial | Notes |
+|---|---|---|
+| Clone Hero | **1** | Frets on face buttons, strum on d-pad, tilt for star power |
+| YARG | **1** | Same layout; YARG detects instruments itself |
+| Fortnite Festival | **2** | Mode 1 maps CTRL to Select, which opens a menu and can't be rebound in-game |
+| Rock Band 4 | **9** | ⚠ Needs the Xbox-licensed model — the multi-platform guitar isn't seen by RB4 |
+| Guitar Hero III | **1** | P3 slider position, for emulated GH |
+| KeyJam | **9** | Guitar presents as a *keyboard*; bindings are keys |
+
+Applying a profile needs **no device connected** — it's a static template. Only
+Auto-Profile reads live hardware.
 
 ---
 
-## 🎮 Hardware Compatibility Matrix
+## 💾 Install
 
-| Device Type | Driver / Subsystem | Tested Hardware | Key Capabilities |
-|---|---|---|---|
-| **CRKD Les Paul Pro** | USB HID / 2.4G / Bluetooth | CRKD Les Paul Pro Model (VID 0x2E95 / PID 0x0883) | Single-Cutaway Chassis, Rhythm/Treble Star Power, 4 Speed Knobs, Cherry MX Frets + Solo Strip, Whammy Arc |
-| **Steam Deck** | Linux `evdev` (`neptune`) | Steam Deck LCD / OLED | ABXY, Triggers, L4–R5 Grips, Dual Trackpads, 3D Gyro |
-| **Rhythm Guitars** | USB HID / XInput | CRKD NEO S Pro, PDP Riffmaster, X-plorer | Mechanical Frets, Solo Row, Clicky Strum, Whammy Arc, Tilt |
-| **Custom DIY Guitars** | OpenStick / GP2040-CE | Raspberry Pi Pico (RP2040), Santroller | Cherry MX Switches, Potentiometer Whammy, Clone Hero Preset |
-| **Electronic Drums** | USB-MIDI / ALSA Raw | Roland TD Series, Alesis Nitro/Surge | Velocity (1–127) Pulse, GM Drum Mapping, Kick & Hi-Hat Pedals |
-| **Fightsticks** | DirectInput / XInput | Sanwa JLF, Hori RAP, Leverless Hitbox | 8-Button Arcade Row, Lever vs. Directional Buttons |
-| **Macropads** | Keyboard HID / evdev | Dynamic $N \times M$ keypads, Stream Decks | Configurable Matrix Grid, Rotary Encoders (Turn + Click) |
-| **Generic Gamepads** | Linux `evdev` | Xbox, DualSense, Switch Pro, 8BitDo | Universal Raw Node Mapper (`BTN_0`..`BTN_31`, `ABS_*`) |
+### Decky Loader (recommended)
 
----
+Download the zip from [**Releases**](https://github.com/NaustudentX18/deckforge-input-studio/releases/latest),
+then Decky → ⚙️ → **Developer** → *Install from zip*.
 
-## 🎸 CRKD Les Paul Pro Model Hardware Blueprint
+Or from a shell on the Deck:
 
-> **Layout measured on hardware (2026-11-13).** A CRKD Les Paul Pro captured on a Steam
-> Deck differs from a generic guitar: whammy is **`ABS_Z`** (not `ABS_RZ`), tilt is a
-> digital **`ABS_HAT0X`** edge (not analog `ABS_Y`), and the strum bar reports
-> **`ABS_HAT0Y`** ±1 (not dpad buttons). Those facts came from a direct evdev capture and
-> stand. Detection accepts them and the profile keeps the device's real ids, so presets
-> match the hardware instead of silently binding the wrong control.
->
-> **Correction on the id.** That same unit reported **`20bc:5500`** under the name
-> "CRKD Gamepad", and an earlier revision of this document called that CRKD's PC-mode id.
-> It is not: `20bc` is registered to ShenZhen ShanWan, usb.ids names `20bc:5500`
-> "Frostbite controller", and SDL classes it as a **PS3** pad. CRKD's own ids are
-> `0351`/`3651`. The `20bc` id is still accepted for detection — the receiver bridge
-> appears to present under it — but which Mode Dial position was active during that
-> capture was never recorded, so it is not evidence of a dial position.
-
-```
-                      ┌──────────────────────┐
-                      │   [CRKD PRO] LOGO    │
-                      │  6 Deluxe Gold Pegs  │
-                      └──────────┬───────────┘
-                                 │
-                   ┌─────────────┴─────────────┐
-                   │    FRETBOARD NECK         │
-                   │ [1] Green Fret   (A)      │
-                   │ [2] Red Fret     (B)      │
-                   │ [3] Yellow Fret  (Y)      │
-                   │ [4] Blue Fret    (X)      │
-                   │ [5] Orange Fret  (LB)     │
-                   │                           │
-                   │ === SOLO TAP STRIP ====== │
-                   │ [S1][S2][S3][S4][S5]      │
-                   └─────────────┬─────────────┘
-                                 │
-     ┌───────────────────────────┴───────────────────────────┐
-     │  CARVED-TOP SINGLE-CUTAWAY CHASSIS                    │
-     │                                                       │
-     │  (RHYTHM / TREBLE)        ┌──────────────┐            │
-     │   3-Way Pickup Toggle     │  STRUM UP    │            │
-     │  [★ Star Power Switch]    ├──────────────┤            │
-     │                           │  STRUM DOWN  │            │
-     │  [D-PAD NAVIGATION]       └──────────────┘  (WHAMMY)  │
-     │     ▲      ◀ ▶                              Spring    │
-     │     ▼                                       Bar Arc   │
-     │                                             0–100%    │
-     │  [AUX] View / Steam / Menu                            │
-     │                                  (VOL 1)    (VOL 2)   │
-     │                                  Neck Vol   Bridge Vol│
-     │  [TILT SENSOR GAUGE]                                  │
-     │  [■■■■■■■■■■□□□□□□] 55°+         (TONE 1)   (TONE 2)  │
-     │                                  Tone/Dial  Tilt Gain │
-     │  [PRO STATUS] 2.4G 1000Hz • ⚡ 92%                    │
-     └───────────────────────────────────────────────────────┘
-```
-
-### Physical Input Event Mappings for CRKD Les Paul Pro
-
-| Component | Physical Input / Code | Steam Input Binding (Clone Hero) | Steam Input Binding (YARG / RPCS3) |
-|---|---|---|---|
-| **Green Fret** | `BTN_SOUTH` / `FRET_GREEN` | `key_press A` | `xinput_button A` / `TRIGGER_LEFT` |
-| **Red Fret** | `BTN_EAST` / `FRET_RED` | `key_press S` | `xinput_button B` / `SHOULDER_LEFT` |
-| **Yellow Fret** | `BTN_NORTH` / `FRET_YELLOW` | `key_press J` | `xinput_button Y` / `SHOULDER_RIGHT` |
-| **Blue Fret** | `BTN_WEST` / `FRET_BLUE` | `key_press K` | `xinput_button X` / `TRIGGER_RIGHT` |
-| **Orange Fret** | `BTN_TL` / `FRET_ORANGE` | `key_press L` | `xinput_button SHOULDER_LEFT` / `A` |
-| **Solo Tap Row** | `BTN_C`, `BTN_Z`, `BTN_THUMB`... | Direct Solo Tap Emulation | Solo Section Tapping Bypass |
-| **Strum Up / Down** | `BTN_DPAD_UP` / `BTN_DPAD_DOWN` | `UP_ARROW` / `DOWN_ARROW` | `DPAD_UP` / `DPAD_DOWN` |
-| **Pickup Toggle** | `BTN_MODE` / `TOGGLE_PICKUP` | `key_press SPACE` (Star Power) | Overdrive Activation / Layer 2 |
-| **Whammy Bar** | `ABS_RZ` (`0.0 .. 1.0` normalized) | `xinput_axis RIGHT_Y` | Native Half-Axis Pitch Modulation |
-| **Speed Knobs (x4)**| `ABS_RX`, `ABS_RY`, `ABS_Z` | Rotary Whammy & Tilt Gain Dial | Virtual Radial Menu / Axis Tuning |
-| **Tilt Accelerometer**| `ABS_Y` (`0 .. 90°` threshold) | `key_press SPACE` (>55° tilt) | `xinput_button BACK` (Overdrive) |
-| **Navigation D-Pad** | `BTN_DPAD_*` | Menu Navigation | Menu Navigation |
-
----
-
-## 🚀 Installation & Quick Start
-
-### One-Command Installer (Steam Deck)
-In SteamOS Desktop Mode (or via SSH), run:
 ```bash
 curl -sL https://raw.githubusercontent.com/NaustudentX18/deckforge-input-studio/main/install.sh | bash
 ```
-or from an existing checkout:
-```bash
-git clone https://github.com/NaustudentX18/deckforge-input-studio
-cd deckforge-input-studio && ./install.sh
+
+The zip is ~12 MB because it vendors the Python dependencies. Decky's interpreter
+is a frozen CPython 3.14 that cannot see pip packages, so they must ship inside
+the plugin — see [why](#-why-this-is-harder-than-it-looks).
+
+### Then, for a CRKD guitar
+
+```
+Platform Slider → PC        Mode Dial → 1
 ```
 
-The installer clones/fast-forwards into `~/homebrew/plugins/DeckForge Input Studio`,
-installs the Node deps, builds both frontend bundles (`dist/index.js` for Decky,
-`static/dist/web-entry.js` for the standalone web studio) and restarts
-`plugin_loader`.
+Plug in the dongle (or the USB-C cable — both work), power the guitar on, open
+the studio and press **⚡ Auto-Profile**. Wired gives the lowest latency.
 
-**It installs no Python packages on purpose.** Decky Loader runs plugins on its own
-frozen interpreter, which cannot see `~/.local/lib/python3.*/site-packages`, and
-SteamOS ships no `pip` for that interpreter. All backend dependencies
-(fastapi, starlette, pydantic, uvicorn, websockets, pyudev, evdev, mido, …) are
-vendored **once at packaging time** into `py_modules/lib` and shipped inside the
-plugin tree. `main.py` puts `py_modules/lib` at the front of `sys.path`.
-
-*The plugin does **not** request the Decky `root` flag: `/dev/input/event*` nodes
-are `uaccess`-granted to the `deck` user, Steam data lives under `/home/deck`, and
-the API port (8765) is unprivileged — so no `HOME=/root` remapping is needed.*
-
-### Re-vendoring Python dependencies
-```bash
-make vendor    # writes an x86_64 / cp314 wheelhouse into py_modules/lib
-```
-Decky's frozen interpreter on current SteamOS is CPython **3.14 x86_64**, so the
-wheelhouse must target `--python-platform x86_64-manylinux2014 --python-version 3.14`.
-`evdev` ships only an sdist, so it is built from source into the same directory.
-
-### Remote Development Deployment
-To push updates from your PC to your Steam Deck over Wi-Fi / Tailscale:
-```bash
-make deploy                      # defaults to deck@192.168.4.223
-make deploy DECK_HOST=100.x.y.z  # Steam Deck Tailscale IP
-```
-
-### Build Store-Ready Developer Zip
-```bash
-make zip
-# Generates dist/deckforge-input-studio.zip (clean, store-ready archive)
-```
-The archive root contains `plugin.json`, `package.json`, `main.py`, `dist/`,
-`static/` (incl. `static/dist/web-entry.js`), `defaults/`, `assets/`,
-`py_modules/deckforge/**` and `py_modules/lib/**`; it excludes `tests`,
-`__pycache__`, `*.map`, `.venv` and `node_modules`.
+> Mode **9** on PC switches the guitar into KeyJam, where it enumerates as a
+> **keyboard**. Gamepad profiles won't apply there and it looks like the guitar
+> is broken.
 
 ---
 
-### Phone / PWA install
+## 🌐 Also a web app
 
-Browsers only allow a service worker (and therefore installation) in a **secure
-context**. `http://<deck-lan-ip>:8765` is not one — the browser hides
-`navigator.serviceWorker` entirely. Two options that work:
+The same UI runs standalone at `http://<deck>:8765` — map on a tablet while
+testing live input on the Deck. Over HTTPS (e.g. `tailscale serve`) it installs
+as a **PWA** with an offline-capable app shell.
 
 ```bash
-# On the Deck: HTTPS with a real cert, proxied to the local API. Persists.
 sudo /opt/tailscale/tailscale serve --bg --https=443 http://127.0.0.1:8765
 ```
-Then open `https://<deck-host>.<tailnet>.ts.net/` in Chrome and choose
-**Add to Home screen**. Alternatively `http://127.0.0.1:8765` on the Deck itself
-counts as secure.
 
-The service worker caches the **app shell only**. API responses are never cached:
-every value here is live hardware state, and a stale device list is worse than an
-honest failure. Navigations are network-first so a redeploy is picked up
-immediately, with the cached shell as the offline fallback.
-
-## 🛠️ Testing & Verification
-
-DeckForge includes a 74-test integration and unit test suite:
-```bash
-# Run pytest test suite
-make test
-# Or using uv:
-uv run pytest py_modules/deckforge/tests
-```
-```
-======================== 74 passed, 1 warning in 0.59s =========================
-```
-
-Test coverage includes:
-* `test_gp2040_profiler.py`: RP2040 / Pico identification, roundtrips, Clone Hero/YARG `.vdf` generation.
-* `test_midi_sniffer.py`: General MIDI drum note mapping, velocity scaling, ALSA device enumeration.
-* `test_steam_paths.py`: Triple-path SteamOS synchronization, schema variants, and CRC32 shortcut calculations.
-* `test_grab_safety.py`: 10-second watchdog auto-release and `ENODEV` hot-unplug recovery.
-* `test_vdf_manager.py`: KeyValues parser, binary `shortcuts.vdf` parsing, strict validation, atomic writes.
-* `test_calibration.py`: Deadzones, Bezier response curves, debounce timing, whammy half-axis normalization.
+Installation needs a secure context — a plain LAN address will not offer it.
 
 ---
 
-## 📜 License
+## 🧠 Why this is harder than it looks
 
-DeckForge Input Studio is open-source software licensed under the **GNU General Public License v2.0 or later** ([GPL-2.0-or-later](LICENSE)).
+Three facts, all verified against real hardware or upstream source, that explain
+most of the design:
+
+**1. The databases don't know guitars.** SDL classifies the id a CRKD-labelled
+unit actually reported as a **PS3 controller**, and its game-controller mapping
+database contains **zero** rhythm-guitar entries. So identity is resolved by
+fingerprinting the inputs a device physically reports — a guitar has a solo-fret
+row and no complete left+right stick pair — then a vendored 613-controller table,
+then names.
+
+**2. Steam's schema is group-based.** A `controller_mappings` body is a list of
+`group` blocks with fixed named inputs; analog output is a *group setting*
+(`output_joystick`), not a binding. There is no `xinput_axis` binding string in
+any of the 77 shipped templates. DeckForge therefore **patches Valve's own
+skeleton** rather than synthesising one, and reports what it cannot express
+(whammy as an axis, the guide button) instead of dropping it silently.
+
+**3. A receiver enumerates with the instrument off.** That produced a
+plausible-looking but wrong profile — strum bound to d-pad buttons instead of the
+measured hat axis, with nothing flagged as skipped. Now refused with *"is the
+controller switched on?"*.
+
+### Hardware notes
+
+- CRKD's own ids are **`0351`/`3651`** (PS4 `1500`/`5500`, PS5 `1600`/`5600`,
+  Xbox `4161`). The `20bc:5500` seen from a CRKD-labelled unit belongs to the
+  **ShanWan bridge chip** — accepted for detection, but it says nothing about
+  which dial position is selected.
+- Measured control layout differs from a generic guitar: whammy `ABS_Z`, tilt a
+  digital `ABS_HAT0X` edge, strum `ABS_HAT0Y`.
+
+---
+
+## 🛠 Development
+
+```bash
+make styles      # regenerate CSS strings (Decky's rollup has no CSS pipeline)
+make test        # 128 backend tests
+npx tsc --noEmit # type check
+bun run build    # both bundles
+make zip         # dist/deckforge-input-studio.zip
+```
+
+Requirements: Node 20+/Bun, Python 3.14, and `uv` to re-vendor `py_modules/lib`
+for **x86_64 / cp314**. See [`HANDOVER.md`](HANDOVER.md) for the architecture and
+the traps worth knowing before changing anything.
+
+---
+
+## 📄 License
+
+GPL-2.0-or-later. Peripheral documentation referenced from
+[PlasticBand](https://github.com/TheNathannator/PlasticBand) is CC BY-SA 4.0.
+
+<div align="center">
+<br>
+<sub>Not affiliated with Valve, Gibson, or CRKD.</sub>
+</div>
