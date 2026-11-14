@@ -284,7 +284,7 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
             <div style={{ minWidth: 0 }}>
               <div className="df-hero__title-row">
                 <h1 className="df-display">DeckForge</h1>
-                <span className="df-badge df-badge--neutral">v0.1.0</span>
+                <span className="df-badge df-badge--neutral">v0.2.0</span>
               </div>
               <p className="df-sm" style={{ marginTop: 2 }}>
                 Hardware mapper &amp; Steam Input compiler for the Steam Deck

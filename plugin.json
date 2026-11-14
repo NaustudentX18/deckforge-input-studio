@@ -2,8 +2,14 @@
   "name": "DeckForge Input Studio",
   "author": "NaustudentX18",
   "publish": {
-    "tags": ["input", "controller", "steam-input", "mapping", "hardware"],
-    "description": "Visual controller mapper and Steam Input VDF template generator for the Steam Deck: device discovery, live input capture, calibration, presets, and VDF export/sync.",
+    "tags": [
+      "input",
+      "controller",
+      "steam-input",
+      "mapping",
+      "hardware"
+    ],
+    "description": "Visual controller mapper and Steam Input template generator for the Steam Deck. Auto-detects guitars, pads, drum kits and fightsticks, builds a matching profile in one press, and publishes real Steam Input configurations. Installable as a PWA.",
     "image": "https://raw.githubusercontent.com/NaustudentX18/deckforge-input-studio/main/assets/plugin_icon.png"
   },
   "flags": [],

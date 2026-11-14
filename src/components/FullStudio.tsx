@@ -1072,7 +1072,7 @@ export const FullStudio: React.FC = () => {
             </span>
           )}
           <span>Resolution: 1280×800</span>
-          <span>DeckForge v0.1.0</span>
+          <span>DeckForge v0.2.0</span>
         </div>
       </div>
 

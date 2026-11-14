@@ -68,7 +68,7 @@ logger = logging.getLogger("deckforge.api_server")
 
 app = FastAPI(
     title="DeckForge Input Studio API",
-    version="0.1.0",
+    version="0.2.0",
     description="Steam Deck input hardware sniffer, calibration engine, and VDF template manager",
 )
 
