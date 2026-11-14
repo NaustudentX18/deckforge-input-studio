@@ -37,6 +37,37 @@ export type StudioTab =
   | 'diagnostics'
   | 'vdf';
 
+/** One classified device from the auto-profiler. */
+interface AutoDetection {
+  device_path: string;
+  name: string;
+  vendor_id: string;
+  product_id: string;
+  bus_type: string;
+  kind: string;
+  kind_confidence: number;
+  kind_reason: string;
+  sdl_type: string | null;
+  steam_schema: string;
+  reserved: boolean;
+  fingerprint?: { buttons: string[]; axes: string[] } | null;
+}
+
+/** Result of POST /api/auto/profile. */
+interface AutoResult {
+  error?: string;
+  detection?: AutoDetection;
+  template_name?: string;
+  template_title?: string;
+  notes?: string[];
+  saved?: {
+    path: string;
+    applied: string[];
+    skipped: string[];
+    steam?: { writable: boolean; template_dir: string };
+  };
+}
+
 interface StudioTabDef {
   id: StudioTab;
   label: string;
@@ -63,6 +94,10 @@ export const FullStudio: React.FC = () => {
   const { isCompact } = useViewport();
   const isTouch = useIsTouch();
   const [showMoreTabs, setShowMoreTabs] = useState(false);
+  // Auto-profiler: detection result and in-flight flag.
+  const [autoBusy, setAutoBusy] = useState(false);
+  const [autoResult, setAutoResult] = useState<AutoResult | null>(null);
+  const [showAutoModal, setShowAutoModal] = useState(false);
   const [selectedInputCode, setSelectedInputCode] = useState<string | null>(null);
   const [activeSetId, setActiveSetId] = useState<string>('default_set');
   const [activeLayerId, setActiveLayerId] = useState<string>('default_layer');
@@ -119,6 +154,40 @@ export const FullStudio: React.FC = () => {
     }
   };
 
+  // Detect connected hardware and build + save a matching profile.
+  const handleAutoProfile = async () => {
+    setAutoBusy(true);
+    setShowAutoModal(true);
+    setAutoResult(null);
+    try {
+      const res = await apiFetch('/api/auto/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_game: 'clone_hero', save: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAutoResult({ error: data?.detail || `Auto-profile failed (${res.status})` });
+        return;
+      }
+      setAutoResult(data);
+      // Reflect the new profile in the studio immediately.
+      await fetchTemplates();
+      if (data?.template_name) await loadTemplate(data.template_name);
+      const applied = data?.saved?.applied?.length ?? 0;
+      const skipped = data?.saved?.skipped?.length ?? 0;
+      triggerToast(
+        skipped > 0
+          ? `Auto-profiled ${data?.detection?.kind ?? 'device'}: ${applied} bound, ${skipped} unsupported`
+          : `Auto-profiled ${data?.detection?.kind ?? 'device'}: ${applied} controls bound`,
+      );
+    } catch (err) {
+      setAutoResult({ error: String(err) });
+    } finally {
+      setAutoBusy(false);
+    }
+  };
+
   const handleOpenQR = async () => {
     setShowQRModal(true);
     try {
@@ -168,6 +237,7 @@ export const FullStudio: React.FC = () => {
     redo,
     canUndo,
     canRedo,
+    fetchTemplates,
   } = useVDFTemplate();
 
   // Pick blueprint by device or template type (with manual override support)
@@ -412,6 +482,28 @@ export const FullStudio: React.FC = () => {
             }}
           >
             {isBinding ? 'Listening... (Press Any Key)' : 'Press Any to Bind'}
+          </button>
+
+          {/* One press: identify the connected hardware and build a profile. */}
+          <button
+            onClick={handleAutoProfile}
+            disabled={autoBusy}
+            title="Detect the connected controller and auto-map a profile"
+            style={{
+              padding: isCompact ? '10px 12px' : '4px 10px',
+              minHeight: isCompact ? TOUCH_TARGET : undefined,
+              flexShrink: 0,
+              backgroundColor: autoBusy ? '#4c1d95' : '#7c3aed',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: autoBusy ? 'default' : 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {autoBusy ? 'Detecting…' : '⚡ Auto-Profile'}
           </button>
         </div>
 
@@ -1007,6 +1099,111 @@ export const FullStudio: React.FC = () => {
         }}>
           <span style={{ color: '#22c55e', fontSize: '16px' }}>✓</span>
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Auto-profiler result: what was found, what was bound, what was not. */}
+      {showAutoModal && (
+        <div
+          onClick={() => setShowAutoModal(false)}
+          style={{
+            position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 10002, padding: isCompact ? '12px' : 0,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: isCompact ? '100%' : '520px', maxWidth: '520px',
+              maxHeight: isCompact ? '86vh' : '80vh', overflowY: 'auto',
+              backgroundColor: '#181829', border: '1px solid #33334d',
+              borderRadius: '12px', padding: isCompact ? '16px' : '22px',
+              boxShadow: '0 12px 48px rgba(0,0,0,0.8)',
+            }}
+          >
+            <h3 style={{ margin: '0 0 12px', color: '#fff', fontSize: '17px', fontWeight: 800 }}>
+              ⚡ Auto-Profile
+            </h3>
+
+            {autoBusy && (
+              <p style={{ color: '#a0a0b8', fontSize: '13px' }}>
+                Identifying connected hardware…
+              </p>
+            )}
+
+            {autoResult?.error && (
+              <p style={{ color: '#ef4444', fontSize: '13px', lineHeight: 1.5 }}>
+                {autoResult.error}
+              </p>
+            )}
+
+            {autoResult?.detection && (
+              <>
+                <div style={{ marginBottom: '12px', fontSize: '13px', color: '#ddd' }}>
+                  <div style={{ marginBottom: '4px' }}>
+                    <strong style={{ color: '#fff' }}>{autoResult.detection.name || 'Unknown device'}</strong>
+                    {' '}
+                    <span style={{ color: '#8a8aa8', fontSize: '11px' }}>
+                      {autoResult.detection.vendor_id}:{autoResult.detection.product_id}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#a0a0b8' }}>
+                    Detected as{' '}
+                    <strong style={{ color: '#22c55e' }}>{autoResult.detection.kind}</strong>
+                    {' '}· {Math.round(autoResult.detection.kind_confidence * 100)}% confidence
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#71717a', marginTop: '2px' }}>
+                    {autoResult.detection.kind_reason}
+                  </div>
+                </div>
+
+                {autoResult.saved && (
+                  <div style={{ display: 'flex', gap: '16px', margin: '10px 0', fontSize: '12px' }}>
+                    <span style={{ color: '#22c55e' }}>
+                      ✓ {autoResult.saved.applied.length} bound
+                    </span>
+                    <span style={{ color: autoResult.saved.skipped.length ? '#f59e0b' : '#71717a' }}>
+                      {autoResult.saved.skipped.length} unsupported
+                    </span>
+                    <span style={{ color: autoResult.saved.steam?.writable ? '#22c55e' : '#ef4444' }}>
+                      Steam {autoResult.saved.steam?.writable ? 'writable' : 'read-only'}
+                    </span>
+                  </div>
+                )}
+
+                {autoResult.saved && autoResult.saved.skipped.length > 0 && (
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#f59e0b', marginBottom: '4px' }}>
+                      Not expressible in Steam's schema:
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '16px', color: '#8a8aa8', fontSize: '11px', lineHeight: 1.6 }}>
+                      {autoResult.saved.skipped.map((s) => <li key={s}>{s}</li>)}
+                    </ul>
+                  </div>
+                )}
+
+                {autoResult.notes && autoResult.notes.length > 0 && (
+                  <ul style={{ margin: '10px 0 0', paddingLeft: '16px', color: '#a0a0b8', fontSize: '11px', lineHeight: 1.6 }}>
+                    {autoResult.notes.map((n) => <li key={n}>{n}</li>)}
+                  </ul>
+                )}
+              </>
+            )}
+
+            <button
+              onClick={() => setShowAutoModal(false)}
+              style={{
+                marginTop: '16px', width: '100%',
+                minHeight: isCompact ? TOUCH_TARGET : undefined,
+                padding: '10px', backgroundColor: '#e94560', color: '#fff',
+                border: 'none', borderRadius: '6px', fontSize: '13px',
+                fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Done
+            </button>
+          </div>
         </div>
       )}
 

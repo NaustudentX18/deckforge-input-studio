@@ -27,7 +27,25 @@
 * **Standalone Web Studio (`0.0.0.0:8765`)**: Built-in FastAPI + WebSocket server accessible wirelessly over **Tailscale** (`http://<steamdeck-ip>:8765/`). Map complex multi-layer configurations on a tablet or second monitor while simultaneously testing live input on the Deck.
 * **Installable PWA for phones and tablets**: served over HTTPS (e.g. `tailscale serve`), the studio installs to an Android/iOS home screen and runs offline with a cached app shell. The phone layout swaps the sidebar for a four-item bottom bar plus a "More" sheet, turns the binding editor into a bottom sheet, respects safe-area insets, and keeps every touch target at least 44px.
 
-### 2. 8 Interactive Hardware Blueprints
+### 2. Smart Auto-Profiler
+One press identifies the connected hardware and builds, saves and publishes a matching Steam Input profile — no manual mapping to get started.
+
+It does not trust the mainstream database, because that database is wrong for the hardware this app cares about most. Verified against upstream SDL on 2026-11-14:
+
+* SDL's `controller_list.h` classifies the measured CRKD Les Paul Pro (`20bc:5500`) as **`k_eControllerType_PS3Controller`** — a plain PS3 pad.
+* SDL's `gamecontrollerdb.txt` contains **zero** rhythm-guitar entries.
+
+So identity is resolved in layers, strongest evidence first:
+
+1. **Capability fingerprint** — the inputs the device physically reports. A guitar has a solo-fret row and no analog-stick pair; a fightstick has 8+ buttons and no sticks; a keyboard has `KEY_*` codes where a controller has `BTN_*`. This is measured from evdev, not inferred from a name.
+2. **Vendored SDL identity table** (613 devices) — names and classifies gamepads.
+3. **Name heuristics** — last resort.
+
+Devices are then rejected unless they are genuinely controllable, which matters: a laptop keyboard's media keys emit `BTN_C`/`BTN_Z`, and a mouse carries five `BTN_*` codes. Without explicit gates on `KEY_*`/`REL_*` counts and pointer axes, both look like a guitar. Steam's own virtual pads (`0x28DE`, virtual bus) are marked reserved and never auto-remapped.
+
+The result is compiled through the same Steam VDF compiler as everything else, so "auto" produces a real, loadable config — and reports exactly which controls Steam's schema could not express rather than failing silently.
+
+### 3. 8 Interactive Hardware Blueprints
 Visual vector chassis where physical inputs illuminate in real time and clicking any element opens its binding inspector:
 * **CRKD Les Paul Pro Model**: Iconic single-cutaway carved-top silhouette with gold multi-ply binding, Kailh/Cherry MX low profile mechanical frets, 5 solo tap frets, dual-microswitch clicky strum bar, authentic Rhythm/Treble Star Power toggle switch, 4 gold speed knobs (Neck/Bridge Volume & Tone dials), heavy-duty spring whammy bar with rotational arc gauge, and tri-mode 2.4GHz/BT/USB-C connectivity indicator. Auto-detected via Vendor ID `0x2E95` / Product ID `0x0883`.
 * **Steam Deck (`neptune`) & Standard Gamepad**: Full face controls, analog stick position dots, L2/R2 analog travel fill bars, rear grip buttons (L4/L5/R4/R5), dual trackpads with touch coordinates, and a 3D IMU gyro orientation wireframe.
@@ -38,7 +56,7 @@ Visual vector chassis where physical inputs illuminate in real time and clicking
 * **Dynamic Keyboard & Macropad Matrix**: Dynamic $N \times M$ grid generator with rotary encoder visualizers (position arc + center push button).
 * **Universal Raw HID Canvas**: Auto-generates visual nodes for any unrecognized USB or Bluetooth controller's raw buttons (`BTN_0`..`BTN_31`) and analog axes (`ABS_X`..`ABS_RZ`).
 
-### 3. Native Steam Input VDF Compiler Engine
+### 4. Native Steam Input VDF Compiler Engine
 * **Triple-Location Synchronization**: Writes atomically to all directories indexed by SteamOS Gaming Mode so templates appear instantly without being overwritten by Steam Cloud:
   1. `~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/`
   2. `~/.local/share/Steam/userdata/<USER_ID>/241100/remote/` (Steam Cloud Remote Sync)
@@ -47,17 +65,17 @@ Visual vector chassis where physical inputs illuminate in real time and clicking
 * **Multi-Schema Variants**: Automatically compiles schemas for `controller_neptune`, `controller_xbox360`, `controller_ps4`, `controller_ps5`, and `controller_generic` so Steam never hides a template due to controller-type mismatch.
 * **Non-Steam Shortcut 64-bit CRC32 Matching**: Computes accurate Steam Big Picture 64-bit shortcut IDs (`((crc32(exe + appname) | 0x80000000) << 32) | 0x02000000`) and 32-bit legacy IDs, ensuring seamless binding to Non-Steam games (Clone Hero, YARG, RPCS3, PCSX2).
 
-### 4. Zero-Latency Engine & Safe Grab Watchdog
+### 5. Zero-Latency Engine & Safe Grab Watchdog
 * **60Hz+ evdev Event Bus**: High-frequency normalized input streaming with sub-15ms response.
 * **Fail-Safe Exclusive Grab**: "Press Any Button to Bind" features a strict **10-second auto-release watchdog**, instant abort hotkeys (`Escape` or `Steam + B`), and `try...finally` `ungrab()` recovery on controller disconnection (`ENODEV`), ensuring Steam UI navigation is never locked out.
 * **Calibration & Filtering**: Per-axis deadzone sliders (inner, outer, anti-deadzone), response curves (Linear, Aggressive, Relaxed, Custom Bezier), and mechanical switch debounce filters (Cherry MX strum/frets).
 
-### 5. Diagnostics & Hardware Benchmarks
+### 6. Diagnostics & Hardware Benchmarks
 * **Polling Rate & Jitter**: Real-time polling frequency in Hz with sparkline history and standard deviation jitter measurement.
 * **Switch Bounce Histogram**: Microsecond-level interval recording for mechanical switch debounce tuning.
 * **Stick Circularity Test**: Polar coordinate scatter plot overlaying actual analog stick deflection against an ideal cardinal circle with error percentage.
 
-### 6. Security & Remote Pairing
+### 7. Security & Remote Pairing
 * **Subnet Guard**: Enforces Tailscale (`100.64.0.0/10`) and private LAN (`192.168.0.0/16`, `10.0.0.0/8`) access restrictions.
 * **PIN Authentication**: Optional 4-digit PIN protection configurable in QAM settings.
 * **Instant QR Code Pairing**: Scan the live vector QR code from the Steam Deck screen with your tablet or phone to pair immediately.

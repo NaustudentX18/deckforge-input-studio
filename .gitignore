@@ -48,6 +48,9 @@ Thumbs.db
 # MUST be committed and archived. Re-generate with `make vendor`.
 !py_modules/lib/**
 !py_modules/lib/**/*.so
+# Byte-code is machine- and version-specific; never ship it.
+py_modules/lib/**/__pycache__/
+py_modules/lib/**/*.pyc
 # Build outputs (produced by `bun run build` / `make zip`; never commit them).
 dist/
 static/dist/

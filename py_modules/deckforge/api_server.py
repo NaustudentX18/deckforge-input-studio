@@ -31,6 +31,12 @@ from .calibration import (
     TiltThresholdCalibrator,
     WhammyNormalizer,
 )
+from .auto_profiler import (
+    auto_profile as auto_build_profile,
+    best_candidate as auto_best,
+    generate_profile as auto_generate,
+    scan as auto_scan,
+)
 from .crkd_profiler import auto_detect_crkd, auto_detect_crkd_les_paul, generate_crkd_template
 from .gp2040_profiler import auto_detect_gp2040, generate_gp2040_template
 from .midi_sniffer import MidiEventStream, list_midi_devices
@@ -464,6 +470,94 @@ async def generate_gp2040_guitar_template(req: GP2040GenerateRequest) -> dict[st
         "template": template.to_dict(),
         "saved_path": str(path),
     }
+
+
+# ===================================================================
+# Auto-profiler: detect connected hardware and map it automatically
+# ===================================================================
+
+class AutoProfileRequest(BaseModel):
+    """Request body for auto-profiling."""
+    target_game: str = "clone_hero"
+    # When true the generated profile is also saved and published to Steam.
+    save: bool = False
+    # Optional explicit device path; otherwise the best candidate is chosen.
+    device_path: Optional[str] = None
+
+
+@app.get("/api/auto/detect")
+async def auto_detect() -> dict[str, Any]:
+    """Classify every connected input device and name the best candidate.
+
+    Returns the reasoning for each verdict (which inputs were seen, why the
+    device was classified that way), so a wrong guess is diagnosable instead of
+    mysterious.
+    """
+    try:
+        detections = await asyncio.to_thread(auto_scan)
+        best = await asyncio.to_thread(auto_best, detections)
+        return {
+            "devices": [d.to_dict() for d in detections],
+            "best": best.to_dict() if best else None,
+        }
+    except Exception as exc:
+        logger.error("Auto-detect failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/auto/profile")
+async def auto_profile_device(req: AutoProfileRequest) -> dict[str, Any]:
+    """Detect the connected hardware and build a matching Steam Input profile."""
+    try:
+        if req.device_path:
+            result = await asyncio.to_thread(
+                _auto_profile_for_path, req.device_path, req.target_game, req.save
+            )
+        else:
+            result = await asyncio.to_thread(
+                auto_build_profile, req.target_game, req.save
+            )
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "No controllable device found. Connect a controller, guitar, "
+                    "fightstick or drum kit and try again."
+                ),
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Auto-profile failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+def auto_save(result: Any) -> dict[str, Any]:
+    """Save-and-publish a generated auto profile, reporting what Steam took."""
+    path = template_manager.save_template(result.template)
+    compiled = template_manager.last_compile
+    return {
+        "path": str(path),
+        "name": result.template.safe_name(),
+        "applied": list(getattr(compiled, "applied", []) or []),
+        "skipped": list(getattr(compiled, "skipped", []) or []),
+        "steam": template_manager.steam_status(),
+    }
+
+
+def _auto_profile_for_path(device_path: str, target_game: str,
+                           save: bool) -> Optional[dict[str, Any]]:
+    """Auto-profile one specific device rather than the best candidate."""
+    detections = auto_scan()
+    wanted = next((d for d in detections if d.device_path == device_path), None)
+    if wanted is None:
+        return None
+    result = auto_generate(wanted, target_game)
+    payload = result.to_dict()
+    if save:
+        payload["saved"] = auto_save(result)
+    return payload
 
 
 @app.get("/api/midi/devices")

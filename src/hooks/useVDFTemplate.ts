@@ -290,6 +290,7 @@ export function useVDFTemplate(initialTemplateName?: string) {
     importTemplate,
     assignGameTemplate,
     fetchVDFDiff,
+    fetchTemplates,
     undo,
     redo,
     canUndo,

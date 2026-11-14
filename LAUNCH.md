@@ -254,3 +254,89 @@ API over HTTPS        200; body shows "Status: connected"
 S25 384x854           no clipping, all controls reachable, bottom nav works
 desktop 1280x800      sidebar + status bar intact, nothing truncated
 ```
+
+---
+
+# Smart Auto-Profiler (2026-11-14)
+
+One press on **⚡ Auto-Profile** identifies the connected hardware, builds a
+matching Steam Input profile, saves it and publishes it into Steam.
+
+## Why it can't just read USB ids
+
+Researched against upstream SDL on 2026-11-14, because this determines the whole
+design:
+
+| Source | What it says about your CRKD Les Paul Pro |
+|---|---|
+| SDL `controller_list.h` | `20bc:5500` → **`k_eControllerType_PS3Controller`** (a plain PS3 pad) |
+| SDL `gamecontrollerdb.txt` | **nothing** — zero guitar/rock-band/riffmaster entries |
+| Steam `configset_*.vdf` | only per-device files, no guitar concept |
+
+The mainstream database is wrong or silent for exactly the hardware DeckForge
+exists for. So identity is layered by strength of evidence:
+
+1. **Capability fingerprint** (measured): a guitar has a solo-fret row and no
+   complete stick pair; a fightstick has 8+ buttons and no sticks; a keyboard has
+   `KEY_*` where a controller has `BTN_*`.
+2. **Vendored SDL identity table** (613 ids): names and classifies gamepads.
+3. **Name heuristics**: last resort.
+
+`tools/build_identity_db.py` regenerates the table from upstream; the JSON is
+committed because Decky's frozen interpreter cannot fetch at load time.
+
+## False positives this had to defeat
+
+The first implementation classified a laptop keyboard as a guitar, because media
+keys emit `BTN_C`/`BTN_Z`/`BTN_THUMB` — the same codes as a solo-fret strip. The
+gates that fix it, each verified against a real device's evdev map:
+
+- `KEY_*` codes are counted separately from `BTN_*`; a large `KEY_*` count with
+  no hat axis means keyboard, not guitar.
+- `REL_*` relative axes (or a mouse-like name) means pointing device, never a
+  controller.
+- No `BTN_*` and no gamepad axes at all means not a controller (hotkey panels,
+  power buttons, audio jacks).
+- Steam's own devices (`0x28DE`, virtual bus, "Valve" in the name) are marked
+  `reserved` and can never be the auto-profile target.
+
+## What it produces
+
+Measured guitar (`20bc:5500`), Clone Hero target:
+
+```
+Detected as guitar · 97% confidence
+solo-fret row present (BTN_C, BTN_Z) with no analog sticks
+✓ 11 bound   1 unsupported   Steam writable
+```
+
+Bound: all five frets, strum up/down (hat axis → d-pad group), whammy (`ABS_Z`),
+tilt, start, select. Unsupported and reported, not silently dropped: the pickup
+toggle (`BTN_MODE`) because Steam owns the guide button.
+
+Every generated profile is compiled through the same Steam VDF compiler as
+manual ones, so it is a real loadable config in Steam's group-based schema.
+
+## API
+
+```
+GET  /api/auto/detect     all devices + per-device reasoning + best candidate
+POST /api/auto/profile    {target_game, save, device_path?}
+                          -> detection, notes, saved:{applied[], skipped[], steam}
+```
+
+`kind_reason` is part of the payload: when a guess is wrong you can see which
+inputs drove it instead of guessing back.
+
+## Verified
+
+- 23 new tests (100 total passing) using capability maps transcribed from the
+  real CRKD, a real Xbox pad, a real keyboard, a mouse and a hotkey panel.
+- Endpoint exercised live: returns 404 with a clear message when nothing is
+  connected; returns the guitar profile when the measured fingerprint is present.
+- UI modal verified rendering the success payload (screenshot, 1280×800) and the
+  no-device error.
+
+Not yet verified on the physical Deck: it was asleep for this session. On wake,
+press **⚡ Auto-Profile** with the guitar plugged in and check the modal matches
+the block above.
