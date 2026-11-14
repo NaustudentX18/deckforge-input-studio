@@ -186,6 +186,36 @@ class TestIdentityTable:
         assert lookup_identity(0xFFFF, 0xEEEE) is None
 
 
+class TestIdleWirelessReceiver:
+    """A 2.4 GHz receiver enumerates even with the instrument switched off.
+
+    This matters because auto-profiling a silent device silently produces a
+    WRONG profile: with no axes reported, the guitar builder falls back to
+    generic dpad strum instead of the measured hat axis, and reports nothing as
+    skipped because every generic binding happens to apply.
+    """
+
+    def _idle(self, name="CRKD Gamepad", vid=0x20BC, pid=0x5500) -> DeviceInfo:
+        return make_device("/dev/input/event9", name, vid, pid, keys=[], abs_=[])
+
+    def test_idle_receiver_is_not_a_guitar(self):
+        det = detect_device(self._idle())
+        assert det.kind == KIND_UNKNOWN
+
+    def test_idle_receiver_reason_asks_if_powered_on(self):
+        det = detect_device(self._idle())
+        assert "switched on" in det.kind_reason
+
+    def test_idle_receiver_is_never_a_profile_candidate(self):
+        assert best_candidate([detect_device(self._idle())]) is None
+
+    def test_family_match_does_not_rescue_a_silent_device(self):
+        # The family is recognised from its ids; that must not promote a device
+        # that reports nothing.
+        det = detect_device(self._idle())
+        assert det.kind != KIND_GUITAR
+
+
 class TestSelection:
     def test_guitar_beats_gamepad(self):
         detections = [detect_device(XBOX_PAD), detect_device(CRKD_LES_PAUL)]

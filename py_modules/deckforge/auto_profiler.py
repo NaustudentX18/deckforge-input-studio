@@ -257,6 +257,23 @@ def classify(fingerprint: Fingerprint, name: str, sdl_type: Optional[str],
         or fp.has_hat
         or fp.has_sticks
     )
+
+    # Recognised but SILENT: a wireless receiver enumerates even when the
+    # instrument is switched off, reporting no buttons, no axes and no key codes.
+    # Auto-profiling that would emit a plausible-looking but wrong profile (strum
+    # bound to dpad buttons instead of the measured hat axis) and report nothing
+    # as skipped, because every generic binding happens to apply.
+    #
+    # Careful: "no buttons and no axes" alone is NOT silence. KeyJam (mode 9)
+    # makes the guitar present as a keyboard, so it reports hundreds of KEY_*
+    # codes and zero BTN_*/ABS_*. That device is very much alive; only the
+    # entirely empty enumeration is refused.
+    if not looks_like_controller and fp.key_codes == 0:
+        return KIND_UNKNOWN, 0.05, (
+            "enumerated but reports no inputs at all - is the controller "
+            "switched on?"
+        )
+
     if not looks_like_controller:
         return KIND_UNKNOWN, 0.05, (
             f"no controller inputs ({fp.key_codes} key codes, no buttons or axes)"
@@ -329,7 +346,16 @@ def detect_device(device: Any) -> Detection:
     # real hardware as "not a controller" and refuse to profile it. The family
     # table knows what the device is; the fingerprint only knows how it looks
     # right now, in whatever mode the dial happens to be on.
-    if family is not None:
+    # A recognised family outranks a capability guess: KeyJam makes this guitar
+    # enumerate as a keyboard, and the keyboard gate below would otherwise call
+    # real hardware "not a controller". The one case the family must NOT rescue
+    # is total silence -- a receiver whose instrument is switched off -- because
+    # profiling it would produce a wrong layout.
+    reports_something = (
+        fp.button_count > 0 or fp.axis_count > 0 or fp.key_codes > 0
+        or fp.has_hat or fp.rel_axes > 0
+    )
+    if family is not None and reports_something:
         kind = family.kind
         confidence = max(confidence, 0.95)
         reason = (
