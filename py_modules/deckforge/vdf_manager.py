@@ -385,6 +385,23 @@ class SteamPathResolver:
     def configset_neptune_path(self, user_id: str) -> Path:
         return self.configset_path(user_id, "neptune")
 
+    def device_configsets(self, user_id: str) -> list[Path]:
+        """Per-*device* configsets, e.g. ``configset_45e-28e-428f6858.vdf``.
+
+        Steam keeps two parallel sets of these files: one keyed on the controller
+        *schema* (``configset_controller_xbox360.vdf``) and one keyed on the
+        device's ``vid-pid``. The Game Mode configurator reads the device-keyed
+        one when a physical controller is connected, so a template only assigned
+        in the schema-keyed file may never appear for the device in hand.
+        """
+        base = self.steam_controller_configs_dir(user_id)
+        if not base.is_dir():
+            return []
+        return sorted(
+            p for p in base.glob("configset_*.vdf")
+            if not p.name.startswith("configset_controller_")
+        )
+
     def steam_controller_configs_dir(self, user_id: str) -> Path:
         """Steam Controller Configs directory: ~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/"""
         return self.steam_root / "steamapps" / "common" / "Steam Controller Configs" / user_id / "config"
@@ -1250,47 +1267,73 @@ class GameAssigner:
 
         written: list[str] = []
         for uid in user_ids:
-            config_path = self.steam.configset_path(uid, template.controller_type)
-            config_path.parent.mkdir(parents=True, exist_ok=True)
+            # Steam keeps TWO parallel configsets: one keyed on the controller
+            # schema (configset_controller_xbox360.vdf) and one keyed on the
+            # device's vid-pid (configset_45e-28e-<suffix>.vdf). The Game Mode
+            # configurator reads the device-keyed one when a physical controller
+            # is connected, and the schema-keyed one as the fallback. Writing only
+            # one leaves the assignment invisible in the other path.
+            targets = [self.steam.configset_path(uid, template.controller_type)]
+            targets.extend(self.steam.device_configsets(uid))
 
-            existing: dict[str, Any] = {}
-            if config_path.exists():
-                bak = config_path.with_suffix(".vdf.bak")
+            for config_path in targets:
                 try:
-                    shutil.copy2(str(config_path), str(bak))
-                except OSError:
-                    pass
-                try:
-                    existing = parse_vdf(
-                        config_path.read_text(encoding="utf-8", errors="replace")
+                    self._bind_template_in_configset(
+                        config_path, target_ids, template_file
                     )
-                except (VDFParseError, OSError):
-                    existing = {}
-
-            block = existing.get("controller_config")
-            if not isinstance(block, dict):
-                block = {}
-                existing["controller_config"] = block
-
-            for tid in target_ids:
-                entry = block.get(tid)
-                if not isinstance(entry, dict):
-                    entry = {}
-                entry["template"] = template_file
-                block[tid] = entry
-
-            _atomic_write(config_path, serialize_vdf(existing) + "\n")
-            written.append(str(config_path))
-            logger.info(
-                "Bound app targets %s to template file %s for user %s",
-                sorted(target_ids), template_file, uid,
-            )
+                except OSError as exc:
+                    logger.warning("Cannot write %s: %s", config_path, exc)
+                    continue
+                written.append(str(config_path))
+                logger.info(
+                    "Bound app targets %s to %s in %s",
+                    sorted(target_ids), template_file, config_path.name,
+                )
 
         return {
             "template_file": template_file,
             "app_ids": sorted(target_ids),
             "configsets": written,
         }
+
+    @staticmethod
+    def _bind_template_in_configset(config_path: Path, target_ids: set[str],
+                                    template_file: str) -> None:
+        """Point every id in *target_ids* at *template_file* inside one configset.
+
+        Preserves everything else in the file: other games keep their existing
+        template assignments, and an existing entry keeps extra keys (EmuDeck
+        writes ``srmAppId``/``srmParserId`` which Steam may rely on).
+        """
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+
+        existing: dict[str, Any] = {}
+        if config_path.exists():
+            backup = config_path.with_suffix(".vdf.bak")
+            try:
+                shutil.copy2(str(config_path), str(backup))
+            except OSError:
+                pass
+            try:
+                existing = parse_vdf(
+                    config_path.read_text(encoding="utf-8", errors="replace")
+                )
+            except (VDFParseError, OSError):
+                existing = {}
+
+        block = existing.get("controller_config")
+        if not isinstance(block, dict):
+            block = {}
+            existing["controller_config"] = block
+
+        for tid in target_ids:
+            entry = block.get(tid)
+            if not isinstance(entry, dict):
+                entry = {}
+            entry["template"] = template_file
+            block[tid] = entry
+
+        _atomic_write(config_path, serialize_vdf(existing) + "\n")
 
 
 # ===================================================================

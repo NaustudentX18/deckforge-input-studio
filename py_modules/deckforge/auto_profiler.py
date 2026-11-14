@@ -680,8 +680,13 @@ def best_candidate(detections: Optional[list[Detection]] = None) -> Optional[Det
     return candidates[0]
 
 
-def auto_profile(target_game: str = "clone_hero", save: bool = False) -> Optional[dict[str, Any]]:
-    """Detect the best connected device and build (optionally save) a profile."""
+def auto_profile(target_game: str = "clone_hero", save: bool = False,
+                 app_id: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Detect the best connected device and build (optionally save) a profile.
+
+    When *app_id* is given the saved profile is also bound to that Steam app, so
+    it appears for the game in Game Mode rather than only existing as a template.
+    """
     candidate = best_candidate()
     if candidate is None:
         return None
@@ -689,9 +694,28 @@ def auto_profile(target_game: str = "clone_hero", save: bool = False) -> Optiona
 
     payload = result.to_dict()
     if save:
-        from .vdf_manager import TemplateManager
+        from .vdf_manager import GameAssigner, TemplateManager
 
         manager = TemplateManager()
+        # A published template is just a file; Steam shows a config for a game
+        # only when the configset binds it, so do both here.
+        if app_id:
+            manager.save_template(result.template)
+            try:
+                payload["assigned"] = GameAssigner().assign_template_to_game(
+                    result.template.safe_name(), str(app_id),
+                    template_manager=manager,
+                )
+            except Exception as exc:
+                payload["assigned"] = {"error": str(exc)}
+            compiled = manager.last_compile
+            payload["saved"] = {
+                "path": str(manager.local_dir / f"{result.template.safe_name()}.vdf"),
+                "applied": list(getattr(compiled, "applied", []) or []),
+                "skipped": list(getattr(compiled, "skipped", []) or []),
+                "steam": manager.steam_status(),
+            }
+            return payload
         path = manager.save_template(result.template)
         compiled = manager.last_compile
         payload["saved"] = {

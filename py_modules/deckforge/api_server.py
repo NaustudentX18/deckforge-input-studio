@@ -544,6 +544,10 @@ class AutoProfileRequest(BaseModel):
     save: bool = False
     # Optional explicit device path; otherwise the best candidate is chosen.
     device_path: Optional[str] = None
+    # Optional Steam app id. When given, the published profile is also bound to
+    # that game, which is what makes it appear in Game Mode for the game itself
+    # rather than only existing as a file in the templates folder.
+    app_id: Optional[str] = None
 
 
 @app.get("/api/auto/detect")
@@ -572,11 +576,12 @@ async def auto_profile_device(req: AutoProfileRequest) -> dict[str, Any]:
     try:
         if req.device_path:
             result = await asyncio.to_thread(
-                _auto_profile_for_path, req.device_path, req.target_game, req.save
+                _auto_profile_for_path, req.device_path, req.target_game,
+                req.save, req.app_id,
             )
         else:
             result = await asyncio.to_thread(
-                auto_build_profile, req.target_game, req.save
+                auto_build_profile, req.target_game, req.save, req.app_id
             )
         if result is None:
             raise HTTPException(
@@ -594,17 +599,32 @@ async def auto_profile_device(req: AutoProfileRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-def auto_save(result: Any) -> dict[str, Any]:
+def auto_save(result: Any, app_id: Optional[str] = None) -> dict[str, Any]:
     """Save-and-publish a generated auto profile, reporting what Steam took."""
     path = template_manager.save_template(result.template)
     compiled = template_manager.last_compile
-    return {
+    payload: dict[str, Any] = {
         "path": str(path),
         "name": result.template.safe_name(),
         "applied": list(getattr(compiled, "applied", []) or []),
         "skipped": list(getattr(compiled, "skipped", []) or []),
         "steam": template_manager.steam_status(),
     }
+
+    if app_id:
+        # Publishing a template only puts a file in controller_base/templates.
+        # Steam shows a config for a *game* only when the configset for this
+        # controller says so, so bind it here as part of "save".
+        try:
+            payload["assigned"] = game_assigner.assign_template_to_game(
+                result.template.safe_name(), app_id,
+                template_manager=template_manager,
+            )
+        except Exception as exc:
+            payload["assigned"] = {"error": str(exc)}
+            logger.warning("Saved profile but could not assign to app %s: %s",
+                           app_id, exc)
+    return payload
 
 
 def _auto_profile_for_path(device_path: str, target_game: str,

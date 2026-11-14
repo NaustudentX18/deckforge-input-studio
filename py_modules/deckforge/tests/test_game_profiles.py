@@ -211,6 +211,62 @@ class TestApplyProfile:
             assert setup["presents_as"] == "gamepad"
             assert setup["notes"]
 
+    def test_assignment_writes_both_configsets(self):
+        """Steam reads a device-keyed configset AND a schema-keyed one.
+
+        Writing only the schema-keyed file leaves the game without a config when
+        the physical controller is connected, which is exactly how a profile
+        ends up invisible in Game Mode.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = self._manager(root)
+            configs = (root / "steamapps" / "common" / "Steam Controller Configs"
+                       / "1116694616" / "config")
+            configs.mkdir(parents=True, exist_ok=True)
+            (configs / "configset_45e-28e-428f6858.vdf").write_text(
+                '"controller_config"\n{\n}\n'
+            )
+
+            from deckforge.vdf_manager import GameAssigner
+
+            template = build_template(find_profile("crkd_lp_clone_hero"))
+            manager.save_template(template)
+            result = GameAssigner(steam=manager.steam).assign_template_to_game(
+                template.safe_name(), "3195947680", template_manager=manager
+            )
+
+            names = {Path(c).name for c in result["configsets"]}
+            assert "configset_45e-28e-428f6858.vdf" in names, "device keyed missing"
+            assert any(n.startswith("configset_controller_") for n in names), \
+                "schema keyed missing"
+            for path in result["configsets"]:
+                assert "3195947680" in Path(path).read_text()
+
+    def test_assignment_preserves_other_games(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = self._manager(root)
+            configs = (root / "steamapps" / "common" / "Steam Controller Configs"
+                       / "1116694616" / "config")
+            configs.mkdir(parents=True, exist_ok=True)
+            target = configs / "configset_45e-28e-428f6858.vdf"
+            target.write_text(
+                '"controller_config"\n{\n\t"other game"\n\t{\n'
+                '\t\t"template"\t\t"keepme.vdf"\n\t}\n}\n'
+            )
+
+            from deckforge.vdf_manager import GameAssigner
+
+            template = build_template(find_profile("crkd_lp_clone_hero"))
+            manager.save_template(template)
+            GameAssigner(steam=manager.steam).assign_template_to_game(
+                template.safe_name(), "3195947680", template_manager=manager
+            )
+            body = target.read_text()
+            assert "other game" in body, "an existing assignment was destroyed"
+            assert "keepme.vdf" in body
+
     def test_apply_unknown_profile_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._manager(Path(tmp))

@@ -252,8 +252,13 @@ def build_template(profile: GameProfile, *, title_suffix: str = "") -> Any:
         for source, out_type, out_code, label in profile.bindings
     ]
 
+    # The emitted schema must match what the DEVICE presents as, not what the
+    # product category is. The CRKD guitar enumerates as 045e:028e -- an Xbox 360
+    # pad -- so Steam looks for its config in configset_45e-28e-*.vdf and a
+    # neptune-typed file never appears there. Forcing "neptune" for all guitars
+    # was the bug that kept profiles out of the Game Mode picker.
     family = next((f for f in KNOWN_FAMILIES if f.family_id == profile.family_id), None)
-    schema = "neptune" if (family and family.kind == "guitar") else "generic"
+    schema = "xbox360" if (family and family.kind == "guitar") else "generic"
 
     title = profile.title + (f" {title_suffix}" if title_suffix else "")
     template = VDFTemplate(
