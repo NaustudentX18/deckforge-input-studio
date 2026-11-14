@@ -385,22 +385,31 @@ class SteamPathResolver:
     def configset_neptune_path(self, user_id: str) -> Path:
         return self.configset_path(user_id, "neptune")
 
-    def device_configsets(self, user_id: str) -> list[Path]:
-        """Per-*device* configsets, e.g. ``configset_45e-28e-428f6858.vdf``.
+    def device_configset(self, user_id: str, vendor_id: int,
+                         product_id: int) -> Optional[Path]:
+        """The configset for ONE physical device: ``configset_<vid>-<pid>-<suffix>.vdf``.
 
         Steam keeps two parallel sets of these files: one keyed on the controller
         *schema* (``configset_controller_xbox360.vdf``) and one keyed on the
         device's ``vid-pid``. The Game Mode configurator reads the device-keyed
-        one when a physical controller is connected, so a template only assigned
+        one when a physical controller is connected, so a template assigned only
         in the schema-keyed file may never appear for the device in hand.
+
+        It must be the *matching* device's file. Every other device-keyed file in
+        that directory belongs to a different physical controller (another pad, a
+        PS5 controller, an emulator layout) and writing our assignment into those
+        would silently reconfigure hardware the user never asked us to touch.
         """
         base = self.steam_controller_configs_dir(user_id)
         if not base.is_dir():
-            return []
-        return sorted(
-            p for p in base.glob("configset_*.vdf")
-            if not p.name.startswith("configset_controller_")
-        )
+            return None
+        prefix = f"configset_{vendor_id:x}-{product_id:x}-"
+        matches = sorted(base.glob(f"{prefix}*.vdf"))
+        if matches:
+            return matches[0]
+        # Not yet present: Steam has not seen this device with a config before.
+        # Writing the schema-keyed file is enough to seed it.
+        return None
 
     def steam_controller_configs_dir(self, user_id: str) -> Path:
         """Steam Controller Configs directory: ~/.local/share/Steam/steamapps/common/Steam Controller Configs/<USER_ID>/config/"""
@@ -1230,13 +1239,18 @@ class GameAssigner:
         return self.list_steam_games() + self.list_nonsteam_games()
 
     def assign_template_to_game(self, template_name: str, app_id: str,
-                                 template_manager: Optional[TemplateManager] = None) -> dict[str, Any]:
+                                 template_manager: Optional[TemplateManager] = None,
+                                 device: Optional[dict[str, int]] = None) -> dict[str, Any]:
         """Point a game at a template via Steam's configset indirection.
 
         Steam does not embed a config in the configset; it stores
         ``{"template": "<file>.vdf"}`` and loads that file from
         ``controller_base/templates``.  So the template must be published first,
         then referenced by filename.
+
+        *device* is the physical controller this assignment is for, as
+        ``{"vendor_id": int, "product_id": int}``. When given, the matching
+        device-keyed configset is written as well as the schema-keyed one.
 
         Returns a summary of what was written.
         """
@@ -1267,14 +1281,23 @@ class GameAssigner:
 
         written: list[str] = []
         for uid in user_ids:
-            # Steam keeps TWO parallel configsets: one keyed on the controller
-            # schema (configset_controller_xbox360.vdf) and one keyed on the
-            # device's vid-pid (configset_45e-28e-<suffix>.vdf). The Game Mode
-            # configurator reads the device-keyed one when a physical controller
-            # is connected, and the schema-keyed one as the fallback. Writing only
-            # one leaves the assignment invisible in the other path.
+            # Steam keeps TWO parallel configsets for any one controller: one
+            # keyed on the schema (configset_controller_xbox360.vdf) and one keyed
+            # on the device's vid-pid (configset_45e-28e-<suffix>.vdf). Game Mode
+            # reads the device-keyed file for a connected controller and the
+            # schema-keyed one as fallback.
+            #
+            # Only the MATCHING device's file is touched. That directory also
+            # holds configsets for every other controller the user has ever
+            # plugged in; writing into all of them would reconfigure hardware
+            # nobody asked about.
             targets = [self.steam.configset_path(uid, template.controller_type)]
-            targets.extend(self.steam.device_configsets(uid))
+            if device is not None:
+                device_path = self.steam.device_configset(
+                    uid, device["vendor_id"], device["product_id"]
+                )
+                if device_path is not None:
+                    targets.append(device_path)
 
             for config_path in targets:
                 try:

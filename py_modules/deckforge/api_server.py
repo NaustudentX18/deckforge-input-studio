@@ -619,6 +619,10 @@ def auto_save(result: Any, app_id: Optional[str] = None) -> dict[str, Any]:
             payload["assigned"] = game_assigner.assign_template_to_game(
                 result.template.safe_name(), app_id,
                 template_manager=template_manager,
+                device={
+                    "vendor_id": result.detection.vendor_id,
+                    "product_id": result.detection.product_id,
+                },
             )
         except Exception as exc:
             payload["assigned"] = {"error": str(exc)}

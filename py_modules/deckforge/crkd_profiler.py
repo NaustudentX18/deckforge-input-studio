@@ -131,6 +131,12 @@ class CRKDGuitarProfile:
     select_button: str = "BTN_SELECT"
     star_power_button: str = "BTN_MODE"
 
+    # The Steam controller schema this profile must be emitted for. It has to
+    # match what the DEVICE presents as, not what the product is: the CRKD guitar
+    # enumerates as 045e:028e (an Xbox 360 pad), so a neptune-typed file is
+    # looked for in the wrong configset and never appears in Game Mode.
+    steam_schema: str = "xbox360"
+
     # Calibration parameters
     whammy_normalizer: WhammyNormalizer = field(default_factory=WhammyNormalizer)
     tilt_calibrator: TiltThresholdCalibrator = field(default_factory=TiltThresholdCalibrator)
@@ -421,7 +427,7 @@ def _build_clone_hero_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         title=title,
         description=description,
         creator="DeckForge CRKD Profiler",
-        controller_type="neptune",
+        controller_type=profile.steam_schema,
         action_sets=[{
             "id": "default_set",
             "name": "InGame",
@@ -457,7 +463,7 @@ def _build_yarg_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         title=title,
         description=description,
         creator="DeckForge CRKD Profiler",
-        controller_type="neptune",
+        controller_type=profile.steam_schema,
         action_sets=[{
             "id": "default_set",
             "name": "Default",
@@ -493,7 +499,7 @@ def _build_rpcs3_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         title=title,
         description=description,
         creator="DeckForge CRKD Profiler",
-        controller_type="neptune",
+        controller_type=profile.steam_schema,
         action_sets=[{
             "id": "default_set",
             "name": "Default",
@@ -529,7 +535,7 @@ def _build_pcsx2_template(profile: CRKDGuitarProfile) -> VDFTemplate:
         title=title,
         description=description,
         creator="DeckForge CRKD Profiler",
-        controller_type="neptune",
+        controller_type=profile.steam_schema,
         action_sets=[{
             "id": "default_set",
             "name": "Default",

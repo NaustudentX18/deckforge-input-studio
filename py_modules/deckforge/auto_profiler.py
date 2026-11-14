@@ -482,6 +482,9 @@ def generate_profile(detection: Detection, target_game: str = "clone_hero") -> A
 
     if detection.kind == KIND_GUITAR:
         profile = CRKDGuitarProfile()
+        # Emit for the schema the device actually presents as (the guitar reports
+        # as an Xbox 360 pad), so Steam finds the config in the right configset.
+        profile.steam_schema = detection.steam_schema or "xbox360"
         profile.device_path = detection.device_path
         profile.device_name = detection.name
         profile.vendor_id = detection.vendor_id
@@ -705,6 +708,10 @@ def auto_profile(target_game: str = "clone_hero", save: bool = False,
                 payload["assigned"] = GameAssigner().assign_template_to_game(
                     result.template.safe_name(), str(app_id),
                     template_manager=manager,
+                    device={
+                        "vendor_id": result.detection.vendor_id,
+                        "product_id": result.detection.product_id,
+                    },
                 )
             except Exception as exc:
                 payload["assigned"] = {"error": str(exc)}

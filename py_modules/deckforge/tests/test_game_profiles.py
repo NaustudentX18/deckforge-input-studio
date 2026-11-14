@@ -233,7 +233,8 @@ class TestApplyProfile:
             template = build_template(find_profile("crkd_lp_clone_hero"))
             manager.save_template(template)
             result = GameAssigner(steam=manager.steam).assign_template_to_game(
-                template.safe_name(), "3195947680", template_manager=manager
+                template.safe_name(), "3195947680", template_manager=manager,
+                device={"vendor_id": 0x045E, "product_id": 0x028E},
             )
 
             names = {Path(c).name for c in result["configsets"]}
@@ -261,11 +262,44 @@ class TestApplyProfile:
             template = build_template(find_profile("crkd_lp_clone_hero"))
             manager.save_template(template)
             GameAssigner(steam=manager.steam).assign_template_to_game(
-                template.safe_name(), "3195947680", template_manager=manager
+                template.safe_name(), "3195947680", template_manager=manager,
+                device={"vendor_id": 0x045E, "product_id": 0x028E},
             )
             body = target.read_text()
             assert "other game" in body, "an existing assignment was destroyed"
             assert "keepme.vdf" in body
+
+    def test_assignment_does_not_touch_other_devices(self):
+        """Only the profiled device's configset may be written.
+
+        That directory also holds a configset for every other controller the user
+        has ever connected. Writing into those would silently reconfigure
+        hardware nobody asked about -- caught on hardware when an assignment
+        touched all 21 of them.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = self._manager(root)
+            configs = (root / "steamapps" / "common" / "Steam Controller Configs"
+                       / "1116694616" / "config")
+            configs.mkdir(parents=True, exist_ok=True)
+            (configs / "configset_45e-28e-428f6858.vdf").write_text(
+                '"controller_config"\n{\n}\n'
+            )
+            other = configs / "configset_28de-1205-428f6858.vdf"
+            other.write_text('"controller_config"\n{\n}\n')
+
+            from deckforge.vdf_manager import GameAssigner
+
+            template = build_template(find_profile("crkd_lp_clone_hero"))
+            manager.save_template(template)
+            GameAssigner(steam=manager.steam).assign_template_to_game(
+                template.safe_name(), "3195947680", template_manager=manager,
+                device={"vendor_id": 0x045E, "product_id": 0x028E},
+            )
+
+            assert "3195947680" not in other.read_text(), \
+                "an unrelated device's configset was modified"
 
     def test_apply_unknown_profile_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
