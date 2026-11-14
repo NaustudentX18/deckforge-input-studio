@@ -530,7 +530,9 @@ def generate_profile(detection: Detection, target_game: str = "clone_hero") -> A
                 return lo < rest < hi
 
             if "ABS_RY" in fp.axes and _rests_centred("ABS_RY"):
-                profile.tilt_axis = "ABS_RY"
+                # ABS_RY only has a slot as a *tilt* source, as a back-grip
+                # button -- see TILT_SLOT_ALIASES in steam_compiler.
+                profile.tilt_axis = "ABS_RY_TILT"
             elif "ABS_HAT0X" in fp.axes and _rests_centred("ABS_HAT0X"):
                 profile.tilt_axis = "ABS_HAT0X"
                 notes.append(

@@ -186,6 +186,43 @@ class TestIdentityTable:
         assert lookup_identity(0xFFFF, 0xEEEE) is None
 
 
+class TestWhammyTiltSlotCollision:
+    """Whammy and tilt must not compete for one Steam slot.
+
+    Measured on the CRKD Les Paul: whammy is ABS_Z and the usable tilt axis is
+    ABS_RY. Both originally mapped to group 8/click, so the compiler dropped
+    tilt with "slot already bound by Whammy" -- the profile looked complete and
+    star power silently did nothing.
+    """
+
+    def _det(self):
+        dev = make_device(
+            "/dev/input/event9", "Microsoft X-Box 360 pad", 0x045E, 0x028E,
+            keys=["BTN_SOUTH", "BTN_EAST", "BTN_NORTH", "BTN_WEST", "BTN_TL",
+                  "BTN_TR", "BTN_SELECT", "BTN_START"],
+            abs_=["ABS_Z", "ABS_RZ", "ABS_RY", "ABS_HAT0X", "ABS_HAT0Y"],
+        )
+        det = detect_device(dev)
+        det.fingerprint.axis_rest = {
+            "ABS_Z": (0, 255, 0), "ABS_RZ": (0, 255, 0),
+            "ABS_RY": (-32768, 32767, 0), "ABS_HAT0X": (-1, 1, -1),
+            "ABS_HAT0Y": (-1, 1, 0),
+        }
+        return det
+
+    def test_tilt_is_not_dropped_in_favour_of_whammy(self):
+        profile = generate_profile(self._det(), "clone_hero")
+        compiled = profile.template.compile()
+        labels = " ".join(compiled.applied)
+        assert "Whammy" in labels
+        assert "Tilt" in labels, f"tilt was dropped: {compiled.skipped}"
+
+    def test_whammy_and_tilt_both_apply_with_nothing_skipped(self):
+        profile = generate_profile(self._det(), "clone_hero")
+        compiled = profile.template.compile()
+        assert compiled.skipped == [], f"unexpected skips: {compiled.skipped}"
+
+
 class TestAxisRestGuard:
     """An axis that rests at its minimum is a one-sided edge, not a held control.
 
@@ -211,7 +248,9 @@ class TestAxisRestGuard:
         }
         profile = generate_profile(det, "clone_hero")
         sources = {b["sourceCode"] for b in profile.template.bindings()}
-        assert "ABS_RY" in sources, "a centred axis should be chosen for tilt"
+        # The centred axis is chosen, and it is named for its function so it lands
+        # in a tilt slot rather than colliding with whammy.
+        assert "ABS_RY_TILT" in sources, "a centred axis should drive tilt"
         assert "ABS_HAT0X" not in sources, "an axis resting at its minimum must not bind tilt"
 
     def test_unbindable_tilt_is_reported_not_silent(self):

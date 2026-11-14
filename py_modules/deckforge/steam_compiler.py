@@ -112,7 +112,13 @@ COMMON_SLOTS: dict[str, Slot] = {
     "ABS_X": Slot("3", "click", kind="axis"),
     "ABS_Y": Slot("3", "click", kind="axis"),
     "ABS_RX": Slot("8", "click", kind="axis"),
-    "ABS_RY": Slot("8", "click", kind="axis"),
+    # ABS_RY is NOT given a slot: it is the slot the guitar's whammy wants (see
+    # ABS_Z below), and on hardware where RY rests at centre it is also the tilt
+    # axis. Two different controls competing for one slot silently drops
+    # whichever is compiled second -- which is what happened: whammy took 8/click
+    # and tilt was reported as "slot already bound by Whammy". A real
+    # right-stick-Y control has nothing useful to bind anyway (the axis passes
+    # through regardless), so leaving it unmapped is correct.
     # Guitar strum bar.  Measured CRKD Les Paul Pro reports it as a hat axis on
     # ABS_HAT0Y (+/-1) rather than as dpad buttons; map both directions onto the
     # dpad group so a strum becomes a real dpad press.
@@ -125,9 +131,16 @@ COMMON_SLOTS: dict[str, Slot] = {
     # free button slot instead of a dpad direction.
     "ABS_HAT0X": Slot("7", "button_back_left"),
     "ABS_HAT1X": Slot("7", "button_back_right"),
-    # Guitar whammy: a group-level analog output, not a button.  Steam exposes
-    # this only through the right stick group, so map it to the stick's click
-    # slot and note the axis in the skipped report.
+    # Tilt can be driven by different axes across devices (the measured CRKD
+    # reports it as a hat edge; other units expose it on the right stick). Both
+    # must land on the same star-power button slot, so the profile names the
+    # *function* rather than the axis.
+    "ABS_RY_TILT": Slot("7", "button_back_left"),
+    "ABS_Y_TILT": Slot("7", "button_back_left"),
+    # Guitar whammy. The axis itself is a group-level output (output_joystick);
+    # what a *binding* can usefully do here is carry the stick-click action, so
+    # whammy owns 8/click on the right-stick group. ABS_RZ gets the right-trigger
+    # group so the two axes on a real pad do not fight over one slot.
     "ABS_Z": Slot("8", "click", kind="axis"),
     "ABS_RZ": Slot("5", "click", kind="axis"),
 }
