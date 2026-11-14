@@ -269,7 +269,7 @@ design:
 
 | Source | What it says about your CRKD Les Paul Pro |
 |---|---|
-| SDL `controller_list.h` | `20bc:5500` → **`k_eControllerType_PS3Controller`** (a plain PS3 pad) |
+| SDL `controller_list.h` | `20bc:5500` → **`k_eControllerType_PS3Controller`** (a ShanWan id, not CRKD's) |
 | SDL `gamecontrollerdb.txt` | **nothing** — zero guitar/rock-band/riffmaster entries |
 | Steam `configset_*.vdf` | only per-device files, no guitar concept |
 
@@ -357,12 +357,22 @@ family:
 
 | Position / mode | VID:PID | Source |
 |---|---|---|
-| PC (measured, unit in hand) | `20BC:5500` | measured on the Deck 2026-11-13 |
 | PS4 wired / dongle | `3651:1500` / `3651:5500` | PlasticBand |
 | PS5 wired / dongle | `3651:1600` / `3651:5600` | PlasticBand |
 | Xbox One | `3651:4161` | PlasticBand |
+| XInput-class ids | `0351:1000`, `0351:2000`, `3651:1000`, `3651:6000` | SDL ("CRKD Guitar") |
+| Seen from a CRKD-labelled unit | `20BC:5500` | captured, but **not a CRKD id** |
 
-All four are now accepted. CRKD's own product page never publishes these ids.
+All are accepted. CRKD's own product page never publishes these ids.
+
+**Correction (2026-11-14).** An earlier revision of this file claimed
+`20BC:5500` was CRKD's PC-mode id. That was wrong. `20bc` is registered to
+ShenZhen ShanWan, usb.ids names `20bc:5500` "Frostbite controller", and SDL
+classifies it as a **PS3** controller. The unit that reported it was labelled
+"CRKD Gamepad", so the id is kept for detection — but it is the bridge's id, not
+CRKD's, and the active dial position at capture time was never recorded. The
+control *layout* facts below are unaffected: they came from a direct evdev
+capture, not from documentation.
 
 **The Mode Dial changes what the host sees**, which is why a "correct profile"
 needs a hardware position attached to it:

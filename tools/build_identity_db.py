@@ -16,7 +16,8 @@ Two upstream sources, each doing a different job:
    which axis is `leftx`). Used to understand a pad's layout.
 
 Neither source models rhythm-game guitars: SDL has zero guitar entries, and it
-classifies the measured CRKD Les Paul Pro (20bc:5500) as a plain PS3 controller.
+classifies 20bc:5500 -- the id a CRKD-labelled unit reported, which belongs to
+the ShanWan bridge chip -- as a plain PS3 controller.
 Guitar identity therefore cannot come from SDL at all -- it comes from
 `:class:`deckforge.auto_profiler` capability fingerprinting. This script records
 that gap explicitly so the runtime code does not pretend otherwise.

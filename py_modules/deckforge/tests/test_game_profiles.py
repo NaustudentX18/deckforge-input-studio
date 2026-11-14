@@ -27,7 +27,12 @@ from deckforge.vdf_manager import SteamPathResolver, TemplateManager
 
 
 def guitar(vid=0x20BC, pid=0x5500, name="CRKD Gamepad") -> DeviceInfo:
-    """The measured CRKD capability map."""
+    """The measured capability map.
+
+    `20bc:5500` is what the unit actually reported, but it is a ShanWan bridge
+    id rather than CRKD's own (`0351`/`3651`). Kept as-is because detection has
+    to handle it; CRKD's documented ids are covered separately below.
+    """
     return DeviceInfo(
         path="/dev/input/event9", name=name, vendor_id=vid, product_id=pid,
         serial="", phys="", uniq="",
@@ -42,10 +47,20 @@ def guitar(vid=0x20BC, pid=0x5500, name="CRKD Gamepad") -> DeviceInfo:
 
 
 class TestDeviceCatalog:
-    def test_crkd_family_recognised_by_measured_id(self):
+    def test_crkd_family_recognised_by_observed_bridge_id(self):
+        # 20bc is the ShanWan bridge id the unit reported, not CRKD's own.
         family = find_family(0x20BC, 0x5500, "CRKD Gamepad")
         assert family is not None
         assert family.family_id == "crkd_les_paul_pro"
+
+    def test_crkd_family_recognised_by_its_own_documented_ids(self):
+        # CRKD's actual ids, per PlasticBand and SDL.
+        for vid, pid in ((0x3651, 0x4161), (0x3651, 0x1500), (0x3651, 0x5500),
+                         (0x3651, 0x1600), (0x3651, 0x5600),
+                         (0x0351, 0x1000), (0x0351, 0x2000)):
+            family = find_family(vid, pid, "")
+            assert family is not None, f"0x{vid:04x}:0x{pid:04x} not matched"
+            assert family.family_id == "crkd_les_paul_pro"
 
     def test_crkd_recognised_by_documented_vendor_id(self):
         # 0x2E95 is CRKD's documented vendor range; both must match.

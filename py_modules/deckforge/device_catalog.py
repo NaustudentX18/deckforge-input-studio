@@ -28,11 +28,23 @@ CRKD Gibson Les Paul Pro Edition (CK25GM family), researched 2026-11-14:
   not publish. Note this documentation covers the CRKD Gibson SG neck; the Les
   Paul Pro uses the same CRKD id range.
 
-  Measured on the actual unit in hand (Steam Deck, 2026-11-13), the Les Paul Pro
-  in PC mode enumerates as ``20bc:5500``. That is a *different* vendor id from
-  CRKD's PlayStation ids (``3651``), so both ranges are accepted: the vendor id
-  depends on the Platform Slider position, because the slider changes which USB
-  personality the guitar presents.
+  Ids seen on the actual unit are NOT all CRKD's own. A device captured on the
+  Deck on 2026-11-13 enumerated as ``20bc:5500`` under the name "CRKD Gamepad",
+  and an earlier revision of this file assumed that was CRKD's PC-mode id.
+
+  That assumption does not hold up. ``20bc`` is registered to ShenZhen ShanWan
+  (a USB bridge-chip vendor), ``20bc:5500`` is described in the usb.ids database
+  as "Frostbite controller", and SDL classifies it as a *PS3* controller -- not
+  as an Xbox-style pad. CRKD's own ids, per PlasticBand, are ``0351``/``3651``
+  ("CRKD Guitar", Xbox-360 class).
+
+  The likely reading is that the receiver bridge presents as ShanWan regardless
+  of which CRKD mode is selected, but **that has not been verified** -- no
+  capture has been taken with a recorded slider and dial position. So the ids
+  are accepted, and the attribution is not asserted: the fingerprint decides
+  what the device *is*, the id only says whether it might be this family.
+
+  Do not infer the dial position from a ``20bc`` sighting.
 
 * Whammy and tilt are full 8-bit axes over these reports (PlasticBand: whammy at
   byte offset 41, tilt at 42 on PS5; 45/46 on PS4), not the hat-shaped digital
@@ -124,12 +136,17 @@ CRKD_LES_PAUL_MODES: tuple[ModePreset, ...] = (
 CRKD_LES_PAUL = ControllerFamily(
     family_id="crkd_les_paul_pro",
     display_name="CRKD Gibson Les Paul Pro Edition",
-    # Vendor ids this family can present, depending on platform-slider position:
-    #   0x20BC -- measured on the unit in hand, PC mode (2026-11-13)
-    #   0x3651 -- CRKD's PlayStation ids per PlasticBand (PS4 1500/5500, PS5 1600/5600)
-    #   0x2E95 -- CRKD's documented range used by older profiles
-    vendor_ids=(0x20BC, 0x3651, 0x2E95),
+    # Vendor ids this family has been seen as, or is documented as:
+    #   0x0351 / 0x3651 -- CRKD's own ids (PlasticBand: PS4 1500/5500,
+    #                     PS5 1600/5600, Xbox One 4161; SDL: 0x1000/0x2000/0x6000)
+    #   0x20BC          -- ShenZhen ShanWan bridge; captured from a unit labelled
+    #                     "CRKD Gamepad", but the vendor is ShanWan's, not
+    #                     CRKD's. Accepted because the device appears as this,
+    #                     never asserted as a CRKD id.
+    #   0x2E95          -- CRKD's older documented range used by early profiles
+    vendor_ids=(0x0351, 0x3651, 0x20BC, 0x2E95),
     product_ids=(
+        0x1000, 0x2000, 0x6000,             # 0351/3651 per SDL ("CRKD Guitar")
         0x5500, 0x5600, 0x1500, 0x1600,     # 3651 range (PS4/PS5, wired + dongle)
         0x4161,                             # 3651 Xbox One
         0x0882, 0x0883, 0x0884, 0x0150, 0x0151,  # documented / legacy range

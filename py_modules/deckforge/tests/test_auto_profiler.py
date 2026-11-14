@@ -1,9 +1,13 @@
 """Tests for the auto-profiler: device fingerprinting, classification, templates.
 
-The fingerprints here are transcribed from real devices measured on the Deck and
-on a workstation on 2026-11-13/14, not invented. In particular
-`CRKD_LES_PAUL_CAPS` is the actual capability map of Forest's CRKD Les Paul Pro
-(`20bc:5500`), which is the case the whole engine exists to get right.
+The capability maps here are transcribed from real devices on the Deck and on a
+workstation on 2026-11-13/14, not invented. `CRKD_LES_PAUL` in particular is the
+actual evdev capability map captured from the CRKD Les Paul Pro.
+
+Note on the ids: that unit reported `20bc:5500`, which is a **ShanWan bridge**
+id, not CRKD's own (`0351`/`3651`). The id is used here because it is what the
+hardware really reported, and because detection must cope with it. The control
+LAYOUT is the measured part; the id attribution is not.
 """
 
 from __future__ import annotations
@@ -170,9 +174,10 @@ class TestIdentityTable:
         assert ident is not None
         assert ident["sdl_type"] == "XBox360Controller"
 
-    def test_measured_crkd_classified_by_sdl_as_ps3(self):
-        # Documented gap: SDL does not model guitars and calls this a PS3 pad.
-        # The profiler must not rely on SDL for guitar identity.
+    def test_observed_crkd_id_classified_by_sdl_as_ps3(self):
+        # Documented gap: SDL does not model guitars, and the id the unit
+        # reported (a ShanWan bridge id) is classed as a PS3 pad. The profiler
+        # must not rely on SDL for guitar identity.
         ident = lookup_identity(0x20BC, 0x5500)
         assert ident is not None
         assert ident["sdl_type"] == "PS3Controller"

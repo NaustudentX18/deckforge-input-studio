@@ -5,8 +5,9 @@ Why this exists
 A device's USB ids are not enough. Researched against upstream SDL on
 2026-11-14:
 
-* SDL's ``controller_list.h`` classifies the measured CRKD Les Paul Pro
-  (``20bc:5500``) as ``k_eControllerType_PS3Controller`` -- a plain PS3 pad.
+* SDL's ``controller_list.h`` classifies ``20bc:5500`` -- the id a
+  CRKD-labelled unit actually reported -- as ``k_eControllerType_PS3Controller``,
+  a plain PS3 pad. That id belongs to the ShanWan bridge chip, not to CRKD.
 * SDL's ``gamecontrollerdb.txt`` contains **no** rhythm-guitar entries at all
   (zero matches for guitar / rock band / riffmaster).
 

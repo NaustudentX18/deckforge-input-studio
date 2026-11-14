@@ -24,14 +24,23 @@ logger = logging.getLogger(__name__)
 
 # Known CRKD and guitar controller hardware IDs.
 #
-# Measured on Forest's CRKD Les Paul Pro (Steam Deck, 2026-11-13): the unit
-# enumerates as 20bc:5500 with the name "CRKD Gamepad". It does NOT use the
-# 0x2E95 ids documented elsewhere, and it does not impersonate a 360 pad on
-# this firmware. Detection therefore has to accept the measured id *and* fall
-# back to the name string, or the guitar is never found.
+# CRKD's OWN ids (PlasticBand, and SDL's controller_list.h which labels them
+# "CRKD Guitar"):
+#   0x0351:0x1000, 0x0351:0x2000, 0x3651:0x1000, 0x3651:0x6000
+#   0x3651:0x1500 / 0x5500  (PS4 wired / dongle)
+#   0x3651:0x1600 / 0x5600  (PS5 wired / dongle)
+#   0x3651:0x4161           (Xbox One)
+#
+# 0x20BC IS NOT A CRKD VENDOR ID. It is ShenZhen ShanWan (a USB bridge vendor);
+# 20bc:5500 is listed in usb.ids as "Frostbite controller" and SDL classifies it
+# as a PS3 controller. A unit captured on the Deck on 2026-11-13 did report
+# 20bc:5500 with the name "CRKD Gamepad", which is why it is accepted here -- but
+# the receiver bridge appears to present under ShanWan's id, and which CRKD mode
+# was active at capture time was never recorded. Keep the id for detection; do
+# not treat it as evidence of the mode dial, and do not describe it as CRKD's.
 CRKD_VENDOR_ID = 0x2E95
-CRKD_MEASURED_IDS: set[tuple[int, int]] = {
-    (0x20BC, 0x5500),   # CRKD Gamepad (Les Paul Pro, measured 2026-11-13)
+CRKD_OBSERVED_IDS: set[tuple[int, int]] = {
+    (0x20BC, 0x5500),   # ShanWan bridge; seen from a CRKD-labelled unit
 }
 CRKD_KNOWN_PIDS = {
     0x0880,  # CRKD NEO S Controller / Guitar Mode
@@ -210,7 +219,7 @@ def is_crkd_or_guitar_device(dev: DeviceInfo) -> bool:
     """Check if a device matches CRKD vendor or guitar patterns."""
     if dev.vendor_id == CRKD_VENDOR_ID:
         return True
-    if (dev.vendor_id, dev.product_id) in CRKD_MEASURED_IDS:
+    if (dev.vendor_id, dev.product_id) in CRKD_OBSERVED_IDS:
         return True
     if (dev.vendor_id, dev.product_id) in GUITAR_VENDOR_PIDS:
         return True
@@ -255,10 +264,14 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
     profile.vendor_id = matched_dev.vendor_id
     profile.product_id = matched_dev.product_id
 
-    # True when this is the physically measured CRKD unit, whose control layout
-    # differs from the generic guitar assumptions below.
-    matched_measured_crkd = (
-        (matched_dev.vendor_id, matched_dev.product_id) in CRKD_MEASURED_IDS
+    # True when this is the unit whose control layout was captured directly from
+    # evdev. The layout facts below are genuinely measured (whammy on ABS_Z, tilt
+    # a digital ABS_HAT0X edge, strum on ABS_HAT0Y). What was NOT recorded is
+    # which Mode Dial position was active during capture, and the id it reported
+    # (20bc, a ShanWan bridge id) is not CRKD's own -- so this gates layout, not
+    # dial position.
+    matched_observed_unit = (
+        (matched_dev.vendor_id, matched_dev.product_id) in CRKD_OBSERVED_IDS
     )
 
     # Inspect capabilities to refine button and axis mappings
@@ -283,7 +296,7 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
     # Strum assignment.  The measured Les Paul Pro reports the strum bar as
     # ABS_HAT0Y +/-1 with no dpad buttons at all, so the hat must be checked
     # first for that hardware.
-    if matched_measured_crkd and "ABS_HAT0Y" in abs_caps:
+    if matched_observed_unit and "ABS_HAT0Y" in abs_caps:
         profile.strum_up = "ABS_HAT0Y_NEG"
         profile.strum_down = "ABS_HAT0Y_POS"
     elif "BTN_DPAD_UP" in key_caps and "BTN_DPAD_DOWN" in key_caps:
@@ -296,7 +309,7 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
     # Whammy axis detection.  On the measured CRKD Les Paul Pro the whammy is
     # ABS_Z (not ABS_RZ, which is what a generic 360 pad would use), so the
     # measured axis is preferred when it is actually present.
-    if matched_measured_crkd:
+    if matched_observed_unit:
         if "ABS_Z" in abs_caps:
             profile.whammy_axis = "ABS_Z"
         elif "ABS_RZ" in abs_caps:
@@ -310,7 +323,7 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
 
     # Tilt on the measured unit is a DIGITAL edge on ABS_HAT0X (-1 only), not an
     # analog axis, and it shares hat 0 with the strum axis.
-    if matched_measured_crkd and "ABS_HAT0X" in abs_caps:
+    if matched_observed_unit and "ABS_HAT0X" in abs_caps:
         profile.tilt_axis = "ABS_HAT0X"
     elif "ABS_RY" in abs_caps:
         profile.tilt_axis = "ABS_RY"
@@ -319,7 +332,7 @@ def auto_detect_crkd() -> CRKDGuitarProfile:
 
     # Match Les Paul Pro Model or specific guitar variant
     name_lower = matched_dev.name.lower()
-    if matched_measured_crkd:
+    if matched_observed_unit:
         profile.blueprint_id = "crkd_les_paul"
         profile.device_name = "CRKD Les Paul Pro Model"
     elif "les paul" in name_lower or "lespaul" in name_lower or "lp pro" in name_lower or matched_dev.product_id in {0x0883, 0x0884, 0x0150, 0x0151}:

@@ -42,9 +42,19 @@ hand-roll a `controller_mappings` body.
 
 The CRKD Gibson Les Paul Pro (Blueberry Burst) is the flagship device:
 
-- **Its USB id depends on the Platform Slider.** Measured in hand: `20BC:5500`
-  in PC mode. PlasticBand documents CRKD as vendor `3651` (PS4 `1500`/`5500`,
-  PS5 `1600`/`5600`, Xbox `4161`). All are accepted.
+- **CRKD's own ids are `0351`/`3651`** (PlasticBand: PS4 `1500`/`5500`, PS5
+  `1600`/`5600`, Xbox One `4161`; SDL additionally lists `1000`/`2000`/`6000`).
+- **`20BC:5500` is NOT a CRKD id.** It is ShenZhen ShanWan (a USB bridge
+  vendor); usb.ids calls `20bc:5500` "Frostbite controller" and SDL classifies it
+  as a *PS3* controller. A unit labelled "CRKD Gamepad" did report it on
+  2026-11-13, so it is accepted for detection — but the bridge appears to
+  present under ShanWan's id, and **which Mode Dial position was active during
+  that capture was never recorded.** Do not read a `20bc` sighting as evidence
+  of a dial position, and do not repeat the earlier claim that it is CRKD's
+  PC-mode id.
+- **The control layout IS measured** (that part stands): whammy `ABS_Z`, tilt a
+  digital `ABS_HAT0X` edge, orange fret `BTN_TL`, strum `ABS_HAT0Y`. Those came
+  from a direct evdev capture, not from documentation.
 - **The Mode Dial changes what the host sees.** 1 guitar default, 2/3/4 Festival,
   5–8 programmable, **9 = KEYJAM on PC (guitar becomes a keyboard)** / RB4 on Xbox.
   This is why a profile carries a required dial position.
@@ -144,3 +154,31 @@ When it wakes:
 - The landing page is **mobile-first**: unprefixed CSS is the phone layout,
   desktop layers at `min-width: 900px`. Don't add `isCompact` branches; use CSS.
 - `apiFetch` derives host **and port** from the page origin. Don't hardcode 8765.
+
+---
+
+## 9. Correction log
+
+### 2026-11-14 — `20bc:5500` is not a CRKD id
+
+An earlier revision of this handover, the catalog, the profiler and the README
+all stated that the guitar "measures as `20bc:5500` in PC mode". That was wrong
+on the attribution:
+
+- `20bc` is **ShenZhen ShanWan** (USB bridge vendor), not CRKD.
+- usb.ids names `20bc:5500` **"Frostbite controller"**.
+- SDL classes it as a **PS3** controller, not an Xbox-style pad.
+- CRKD's own ids are **`0351`/`3651`** (PlasticBand: PS4 `1500`/`5500`, PS5
+  `1600`/`5600`, Xbox `4161`; SDL also lists `1000`/`2000`/`6000`).
+
+What is still true: the unit did report that id, so it is accepted for
+detection; and the **control layout** (whammy `ABS_Z`, tilt digital
+`ABS_HAT0X`, strum `ABS_HAT0Y`) came from a direct evdev capture and is sound.
+
+What is now explicitly marked unknown: **which Mode Dial position was active
+when that capture was taken.** Nothing recorded it, so no document here may
+infer a dial position from a `20bc` sighting.
+
+If you get the Deck up with the guitar connected, the fastest way to settle it:
+note the slider and dial position, then `lsusb` — that maps id → dial position
+properly and the comment can stop hedging.

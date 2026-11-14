@@ -32,7 +32,7 @@ One press identifies the connected hardware and builds, saves and publishes a ma
 
 It does not trust the mainstream database, because that database is wrong for the hardware this app cares about most. Verified against upstream SDL on 2026-11-14:
 
-* SDL's `controller_list.h` classifies the measured CRKD Les Paul Pro (`20bc:5500`) as **`k_eControllerType_PS3Controller`** — a plain PS3 pad.
+* SDL's `controller_list.h` classifies `20bc:5500` — the id a CRKD-labelled unit actually reported — as **`k_eControllerType_PS3Controller`** — a plain PS3 pad. That id is not CRKD's; it belongs to the ShanWan bridge chip.
 * SDL's `gamecontrollerdb.txt` contains **zero** rhythm-guitar entries.
 
 So identity is resolved in layers, strongest evidence first:
@@ -141,13 +141,20 @@ Visual vector chassis where physical inputs illuminate in real time and clicking
 
 ## 🎸 CRKD Les Paul Pro Model Hardware Blueprint
 
-> **Measured on hardware (2026-11-13).** A CRKD Les Paul Pro connected to a Steam Deck
-> enumerates as **`20bc:5500`, name "CRKD Gamepad"** — not the `0x2E95` ids documented
-> elsewhere, and not a spoofed 360 pad. Its layout also differs from a generic guitar:
-> whammy is **`ABS_Z`** (not `ABS_RZ`), tilt is a digital **`ABS_HAT0X`** edge (not analog
-> `ABS_Y`), and the strum bar reports **`ABS_HAT0Y`** ±1 (not dpad buttons). Detection
-> accepts the measured ids and the profile keeps the device's real ids, so presets match
-> the hardware instead of silently binding the wrong control.
+> **Layout measured on hardware (2026-11-13).** A CRKD Les Paul Pro captured on a Steam
+> Deck differs from a generic guitar: whammy is **`ABS_Z`** (not `ABS_RZ`), tilt is a
+> digital **`ABS_HAT0X`** edge (not analog `ABS_Y`), and the strum bar reports
+> **`ABS_HAT0Y`** ±1 (not dpad buttons). Those facts came from a direct evdev capture and
+> stand. Detection accepts them and the profile keeps the device's real ids, so presets
+> match the hardware instead of silently binding the wrong control.
+>
+> **Correction on the id.** That same unit reported **`20bc:5500`** under the name
+> "CRKD Gamepad", and an earlier revision of this document called that CRKD's PC-mode id.
+> It is not: `20bc` is registered to ShenZhen ShanWan, usb.ids names `20bc:5500`
+> "Frostbite controller", and SDL classes it as a **PS3** pad. CRKD's own ids are
+> `0351`/`3651`. The `20bc` id is still accepted for detection — the receiver bridge
+> appears to present under it — but which Mode Dial position was active during that
+> capture was never recorded, so it is not evidence of a dial position.
 
 ```
                       ┌──────────────────────┐
