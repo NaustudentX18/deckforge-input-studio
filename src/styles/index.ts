@@ -640,10 +640,14 @@ export const LANDING_CSS = `/* =================================================
 }
 
 .df-stat__icon {
-  font-size: 18px;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
-  margin-top: 1px;
+  border-radius: var(--r-sm);
+  background: var(--surface-4);
+  color: var(--accent);
 }
 
 .df-stat__label {
@@ -674,6 +678,15 @@ export const LANDING_CSS = `/* =================================================
 
 .df-device--found { border-color: var(--success); background: var(--success-soft); }
 .df-device--none  { border-color: var(--border); }
+
+.df-device > svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.df-device--found > svg {
+  color: var(--accent);
+}
 
 .df-device__body {
   flex: 1;
@@ -920,6 +933,7 @@ export const LANDING_CSS = `/* =================================================
 /* ---- Notice ------------------------------------------------------------- */
 .df-notice {
   display: flex;
+  align-items: flex-start;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r-md);
@@ -928,6 +942,11 @@ export const LANDING_CSS = `/* =================================================
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-muted);
+}
+
+.df-notice > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .df-notice--success { border-color: var(--success); background: var(--success-soft); color: #c8f7e3; }
@@ -970,6 +989,62 @@ export const LANDING_CSS = `/* =================================================
   border-radius: var(--r-lg);
   color: var(--text-dim);
   font-size: var(--fs-sm);
+}
+
+
+/* ---- Product screenshots ------------------------------------------------
+   Real captures of the running app, not mockups. A bordered frame keeps them
+   legible against the dark page, and \`loading="lazy"\` avoids paying for the
+   off-screen ones. */
+.df-showcase {
+  display: grid;
+  gap: var(--sp-3);
+  grid-template-columns: 1fr;
+  margin-bottom: var(--sp-4);
+}
+
+@media (min-width: 620px) {
+  .df-showcase { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1020px) {
+  .df-showcase { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.df-shot {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-2);
+  position: relative;
+}
+
+.df-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Never let an intrinsic-width image overflow its frame. */
+  max-width: 100%;
+}
+
+.df-shot figcaption {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* The phone capture is portrait; give it its own narrower track so it is not
+   stretched across a desktop column. */
+.df-shot--phone {
+  max-width: 300px;
+  width: 300px;
+  margin-inline: auto;
+  /* A grid item stretches by default; without this the portrait capture is
+     pulled wide and the max-width appears to do nothing. */
+  justify-self: center;
+  align-self: start;
 }
 `;
 

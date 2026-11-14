@@ -1,5 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api/client';
+import {
+  AlertIcon,
+  ArrowRightIcon,
+  BoltIcon,
+  CheckIcon,
+  DialIcon,
+  DrumsIcon,
+  GamepadIcon,
+  GuitarIcon,
+  InfoIcon,
+  PlugIcon,
+  SwitchIcon,
+} from './icons';
 
 interface LaunchPageProps {
   onLaunchStudio: () => void;
@@ -117,7 +130,7 @@ const ProfileCard: React.FC<{
 
     {profile.requires_xbox_licence && (
       <div className="df-notice df-notice--warning" style={{ padding: '8px 10px', fontSize: 'var(--fs-xs)' }}>
-        <span aria-hidden>⚠</span>
+        <AlertIcon size={14} />
         <span>Needs the Xbox-licensed guitar.</span>
       </div>
     )}
@@ -290,14 +303,14 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
             </div>
             <button className="df-btn df-btn--primary df-launch" onClick={onLaunchStudio}>
               Open Studio
-              <span aria-hidden>→</span>
+              <ArrowRightIcon size={16} />
             </button>
           </div>
         </header>
 
         {/* ---------------- Detected hardware ---------------- */}
         <div className={`df-device ${detected ? 'df-device--found' : 'df-device--none'}`}>
-          <span aria-hidden style={{ fontSize: 20 }}>{detected ? '🎸' : '🔌'}</span>
+          {detected ? <GuitarIcon size={22} /> : <PlugIcon size={22} />}
           <div className="df-device__body">
             {detected ? (
               <>
@@ -342,7 +355,7 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
         {/* ---------------- Feedback ---------------- */}
         {message && (
           <div className={`df-notice df-notice--${message.kind}`} role="status" style={{ marginBottom: 'var(--sp-4)' }}>
-            <span aria-hidden>{message.kind === 'success' ? '✓' : '⚠'}</span>
+            {message.kind === 'success' ? <CheckIcon size={16} /> : <AlertIcon size={16} />}
             <span>{message.text}</span>
           </div>
         )}
@@ -350,6 +363,27 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
         {/* ================= One-click profiles ================= */}
         {tab === 'profiles' && (
           <section>
+            {/* Real captures of the running app, so the page shows rather than
+                claims what it does. */}
+            <div className="df-section-head">
+              <h2 className="df-h2">What it looks like</h2>
+              <span className="df-xs">Captured from this build</span>
+            </div>
+            <div className="df-showcase" style={{ marginBottom: 'var(--sp-6)' }}>
+              <figure className="df-shot">
+                <img src="/static/shots/landing-profiles.jpg" alt="One-click profile cards for Clone Hero, YARG, Fortnite Festival and Rock Band 4, each showing the required Mode Dial position" loading="lazy" width="1280" height="900" />
+                <figcaption>One-click profiles, each with its required dial position</figcaption>
+              </figure>
+              <figure className="df-shot">
+                <img src="/static/shots/landing-hardware.jpg" alt="Hardware page listing the CRKD Les Paul Pro specifications and the nine-position Mode Dial reference" loading="lazy" width="1280" height="900" />
+                <figcaption>The Mode Dial reference — what each position presents</figcaption>
+              </figure>
+              <figure className="df-shot df-shot--phone">
+                <img src="/static/shots/landing-mobile.jpg" alt="The same page on a phone, showing the mobile layout with bottom-sized tabs and stacked profile cards" loading="lazy" width="390" height="844" />
+                <figcaption>Mobile layout, mobile-first</figcaption>
+              </figure>
+            </div>
+
             <div className="df-section-head">
               <h2 className="df-h2">One-click profiles</h2>
               <span className="df-xs">Each states the Mode Dial position it needs</span>
@@ -363,7 +397,7 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
               </div>
             ) : profiles.length === 0 ? (
               <div className="df-empty">
-                <span style={{ fontSize: 24 }} aria-hidden>🎛</span>
+                <GamepadIcon size={26} />
                 <span>The profile catalog could not be loaded. Open the Studio and press Auto-Profile instead.</span>
                 <button className="df-btn df-btn--primary df-btn--sm" onClick={onLaunchStudio}>
                   Open Studio
@@ -401,28 +435,28 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
               </p>
               <div className="df-grid df-grid--stats" style={{ marginBottom: 'var(--sp-3)' }}>
                 <div className="df-stat">
-                  <span className="df-stat__icon" aria-hidden>🎚</span>
+                  <span className="df-stat__icon"><DialIcon size={18} /></span>
                   <div>
                     <div className="df-stat__label">Mode Dial</div>
                     <div className="df-stat__value">9 positions, 4 programmable</div>
                   </div>
                 </div>
                 <div className="df-stat">
-                  <span className="df-stat__icon" aria-hidden>🔀</span>
+                  <span className="df-stat__icon"><SwitchIcon size={18} /></span>
                   <div>
                     <div className="df-stat__label">Platform Slider</div>
                     <div className="df-stat__value">PC · NS · AN · P3</div>
                   </div>
                 </div>
                 <div className="df-stat">
-                  <span className="df-stat__icon" aria-hidden>🎸</span>
+                  <span className="df-stat__icon"><GuitarIcon size={18} /></span>
                   <div>
                     <div className="df-stat__label">Frets</div>
                     <div className="df-stat__value">Mechanical, RGB-lit neck</div>
                   </div>
                 </div>
                 <div className="df-stat">
-                  <span className="df-stat__icon" aria-hidden>⚡</span>
+                  <span className="df-stat__icon"><BoltIcon size={18} /></span>
                   <div>
                     <div className="df-stat__label">Strum</div>
                     <div className="df-stat__value">Hall Effect + haptics</div>
@@ -431,7 +465,7 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
               </div>
 
               <div className="df-notice df-notice--info">
-                <span aria-hidden>ℹ</span>
+                <InfoIcon size={16} />
                 <span>
                   The dial changes what the host sees. Position 9 is <strong>KEYJAM</strong> on PC —
                   the guitar enumerates as a keyboard, so gamepad profiles do not apply there.
@@ -522,7 +556,7 @@ export const LaunchPage: React.FC<LaunchPageProps> = ({
             </div>
 
             <div className="df-notice df-notice--warning">
-              <span aria-hidden>⚠</span>
+              <AlertIcon size={16} />
               <span>
                 Fortnite Festival Pro mode needs the dial on <strong>2</strong>. On position 1 the
                 CTRL button reports as Select, which opens a menu, and the game will not let you

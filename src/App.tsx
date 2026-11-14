@@ -4,6 +4,7 @@ import LaunchPage from './components/LaunchPage';
 import { useInputDevice } from './hooks/useInputDevice';
 import { useVDFTemplate } from './hooks/useVDFTemplate';
 import { useViewport, registerServiceWorker } from './hooks/useResponsive';
+import { GamepadIcon, InfoIcon } from './components/icons';
 
 // Contexts for standalone web mode
 export const DeviceContext = createContext<ReturnType<typeof useInputDevice> | null>(null);
@@ -80,9 +81,13 @@ export const App: React.FC = () => {
                 cursor: 'pointer',
                 backdropFilter: 'blur(8px)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
               }}
             >
-              {currentView === 'launch' ? '🎮 Enter Live Studio' : '📖 Architecture & Guides'}
+              {currentView === 'launch' ? <GamepadIcon size={15} /> : <InfoIcon size={15} />}
+              {currentView === 'launch' ? 'Enter Live Studio' : 'Guides'}
             </button>
           </div>
 
