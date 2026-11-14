@@ -1268,16 +1268,20 @@ class GameAssigner:
         if not user_ids:
             raise RuntimeError("No Steam user IDs found")
 
-        # A non-Steam shortcut answers to several ids; bind all of them.
+        # A non-Steam shortcut answers to several ids, but Steam keys its
+        # configsets on the 32-bit shortcut id. Writing the 64-bit id as well
+        # made Steam propagate the entry into EVERY device configset (observed:
+        # 22 files, while other games appear in 1) -- so only the 32-bit form is
+        # bound. Steam mirrors it to the 64-bit id itself once it sees it.
         target_ids = {str(app_id)}
         for game in self.list_nonsteam_games():
             if str(app_id) in (
                 game.get("app_id"), game.get("shortcut_id_32"),
                 game.get("shortcut_id_64"), game.get("raw_appid"),
             ):
-                for key in ("shortcut_id_32", "shortcut_id_64"):
-                    if game.get(key):
-                        target_ids.add(str(game[key]))
+                shortcut_32 = game.get("shortcut_id_32")
+                if shortcut_32:
+                    target_ids.add(str(shortcut_32))
 
         written: list[str] = []
         for uid in user_ids:
