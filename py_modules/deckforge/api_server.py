@@ -473,6 +473,67 @@ async def generate_gp2040_guitar_template(req: GP2040GenerateRequest) -> dict[st
 
 
 # ===================================================================
+# Known hardware catalog and one-click game profiles
+# ===================================================================
+
+@app.get("/api/catalog/devices")
+async def catalog_devices() -> list[dict[str, Any]]:
+    """Controller families DeckForge knows natively, with their mode-dial maps."""
+    try:
+        from .device_catalog import all_families
+        return all_families()
+    except Exception as exc:
+        logger.error("Device catalog failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/catalog/profiles")
+async def catalog_profiles(device_path: Optional[str] = None) -> dict[str, Any]:
+    """Every pre-made one-click profile, optionally filtered to one device.
+
+    Profiles carry the hardware state they require (mode-dial position), because
+    for some games the correct bindings are meaningless unless the dial matches.
+    """
+    try:
+        from .game_profiles import catalog, profiles_for_device
+
+        if device_path:
+            detections = await asyncio.to_thread(auto_scan)
+            wanted = next((d for d in detections if d.device_path == device_path), None)
+            if wanted is None:
+                return {"profiles": [], "matched_device": None}
+            matched = profiles_for_device(wanted.vendor_id, wanted.product_id, wanted.name)
+            return {
+                "profiles": [p.to_dict() for p in matched],
+                "matched_device": wanted.to_dict(),
+            }
+        return {"profiles": catalog(), "matched_device": None}
+    except Exception as exc:
+        logger.error("Profile catalog failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class ApplyProfileRequest(BaseModel):
+    profile_id: str
+
+
+@app.post("/api/catalog/apply")
+async def catalog_apply(req: ApplyProfileRequest) -> dict[str, Any]:
+    """One click: save a pre-made profile and publish it into Steam."""
+    try:
+        from .game_profiles import apply_profile
+
+        return await asyncio.to_thread(
+            apply_profile, req.profile_id, manager=template_manager
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.error("Apply profile failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ===================================================================
 # Auto-profiler: detect connected hardware and map it automatically
 # ===================================================================
 

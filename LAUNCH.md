@@ -340,3 +340,84 @@ inputs drove it instead of guessing back.
 Not yet verified on the physical Deck: it was asleep for this session. On wake,
 press **⚡ Auto-Profile** with the guitar plugged in and check the modal matches
 the block above.
+
+---
+
+# CRKD Les Paul Pro: researched profiles + UI rebuild (2026-11-14)
+
+## What the research changed
+
+Researched against primary sources (CRKD product page, the CK25GM user guide,
+CRKD firmware v2.0 notes) and the community's authoritative peripheral docs,
+`TheNathannator/PlasticBand` (CC BY-SA 4.0).
+
+**The hardware id depends on a switch.** The same guitar presents different USB
+ids per Platform Slider position, so a single-VPID table misses most of the
+family:
+
+| Position / mode | VID:PID | Source |
+|---|---|---|
+| PC (measured, unit in hand) | `20BC:5500` | measured on the Deck 2026-11-13 |
+| PS4 wired / dongle | `3651:1500` / `3651:5500` | PlasticBand |
+| PS5 wired / dongle | `3651:1600` / `3651:5600` | PlasticBand |
+| Xbox One | `3651:4161` | PlasticBand |
+
+All four are now accepted. CRKD's own product page never publishes these ids.
+
+**The Mode Dial changes what the host sees**, which is why a "correct profile"
+needs a hardware position attached to it:
+
+1 Guitar Default · 2 Festival Pro · 3 Festival E/M/H · 4 Festival Expert ·
+5–8 programmable (CRKD CTRL) · 9 KEYJAM on PC / RB4 on Xbox.
+
+Position 9 on PC makes the guitar a **keyboard**, so gamepad profiles cannot
+apply there. The auto-profiler now learns this family, so it still identifies
+the device instead of concluding "no controller".
+
+**Whammy and tilt are 8-bit axes** (byte 41/42 on PS5, 45/46 on PS4), not the
+digital hat tilt a raw evdev dump suggests.
+
+## One-click profiles
+
+Six pre-made profiles: Clone Hero, YARG, Fortnite Festival, Rock Band 4,
+Guitar Hero III, and KeyJam. Each carries the mode-dial position it requires,
+and the UI states it — a profile without that is a lie for any game whose
+correct behaviour depends on the dial. `POST /api/catalog/apply` saves and
+publishes in one call.
+
+Rock Band 4 is flagged as requiring the Xbox-licensed model, because the
+multi-platform guitar is not recognised by RB4 as a guitar.
+
+## UI/UX rebuild
+
+The old UI had **110 distinct hex colours** hard-coded across ~2,000 lines of
+inline styles and no design tokens; two panels could both be "surface" and be
+four different colours. Rebuilt as:
+
+- `src/styles/tokens.css` — one palette, spacing scale, radii, fluid type,
+  elevation, motion. Respects `prefers-reduced-motion`.
+- `src/styles/base.css` — reset, focus-visible, and the shared primitives
+  (`df-btn`, `df-badge`, `df-card`, `df-select`, `df-tabs`…).
+- `src/styles/landing.css` — landing layout only.
+- **Mobile-first**: unprefixed rules are the phone layout, desktop is layered at
+  min-width 900px. That is the reverse of before, where everything was built for
+  1280×800 and patched down with `isCompact` branches.
+- `tools/gen-styles.mjs` emits the CSS as string constants, because Decky's
+  rollup preset has no CSS pipeline (`make styles` regenerates).
+
+Landing page fixes along the way: wrong ids on the hardware card, Steam template
+paths that do not exist on this build, a clipped tab rail, a wide table that
+silently cut off mid-column, and a status line that said "Controller live" when
+no controller was connected.
+
+## Verified
+
+- 123 backend tests pass; `tsc --noEmit` clean.
+- One-click apply exercised end-to-end in the browser: saved, published, and
+  reported the required dial position.
+- Screenshots at 384×854 (phone) and 1280×800 (Deck): tabs fit exactly
+  (352/352), no horizontal page overflow, table scrolls with an explicit hint,
+  desktop is a clean 3-column grid.
+
+Not verified on the physical Deck — offline this session. Deploy with the rsync
+recipe above when it wakes.

@@ -2,6 +2,23 @@ import React from 'react';
 import { definePlugin, routerHook } from '@decky/api';
 import QAMPanel from './components/QAMPanel';
 import FullStudio from './components/FullStudio';
+import { ALL_CSS } from './styles';
+
+/**
+ * Inject the design-system stylesheets once.
+ *
+ * Rollup's Decky preset has no CSS pipeline, so they are read as text and
+ * appended as a <style> element. The web build gets the same files through a
+ * normal import in web-entry.tsx.
+ */
+function injectStyles(): void {
+  const id = 'deckforge-design-system';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = ALL_CSS;
+  document.head.appendChild(style);
+}
 
 // Gamepad SVG icon for Decky sidebar
 const GamepadIcon: React.FC = () => (
@@ -17,6 +34,8 @@ const GamepadIcon: React.FC = () => (
 );
 
 export default definePlugin(() => {
+  injectStyles();
+
   // Register full-screen route at /deckforge
   routerHook.addRoute('/deckforge', FullStudio);
 

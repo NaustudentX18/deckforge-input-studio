@@ -44,8 +44,16 @@ vendor:
 	find $(LIB_DIR) -type d -name '__pycache__' -prune -exec rm -rf {} +
 	@echo "✅ Vendored: $$(ls $(LIB_DIR) | wc -l) entries, $$(du -sh $(LIB_DIR) | cut -f1)"
 
+## styles — regenerate the CSS text module (run after editing src/styles/*.css)
+styles:
+	node tools/gen-styles.mjs
+
+## identity-db — regenerate the vendored controller identity table from upstream SDL
+identity-db:
+	python3 tools/build_identity_db.py
+
 ## build — compile the frontend bundle & standalone web studio
-build:
+build: styles
 	pnpm run build || npm run build
 
 ## package — alias to build and prepare vendor dependencies

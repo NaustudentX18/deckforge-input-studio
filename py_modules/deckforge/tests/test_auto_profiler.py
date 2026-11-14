@@ -123,7 +123,12 @@ class TestClassification:
         det = detect_device(CRKD_LES_PAUL)
         assert det.kind == KIND_GUITAR
         assert det.kind_confidence > 0.9
-        assert "solo-fret" in det.kind_reason
+        # Recognised by family now, which outranks the capability guess and is
+        # the stronger statement (it also survives KeyJam mode, where the same
+        # hardware enumerates as a keyboard).
+        assert det.family_id == "crkd_les_paul_pro"
+        assert "CRKD" in det.kind_reason
+        assert det.setup_notes, "a recognised family must carry its setup notes"
 
     def test_keyboard_is_not_guitar(self):
         # The exact bug this engine must not have: media-key BTN codes matching

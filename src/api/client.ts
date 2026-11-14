@@ -16,7 +16,12 @@
  * So: HTTPS pages talk to their own origin; HTTP pages keep the explicit port.
  */
 
-const API_PORT = 8765;
+/**
+ * Default API port. Overridden by the page's own port when the studio is served
+ * by the API itself — otherwise running the server anywhere other than 8765
+ * leaves the UI silently calling the wrong host.
+ */
+const DEFAULT_API_PORT = 8765;
 const STEAM_CEF_HOST_SUFFIX = 'steamloopback.host';
 
 function isSteamCefOrigin(host: string): boolean {
@@ -24,12 +29,22 @@ function isSteamCefOrigin(host: string): boolean {
   return normalized === STEAM_CEF_HOST_SUFFIX || normalized.endsWith(`.${STEAM_CEF_HOST_SUFFIX}`);
 }
 
-function currentLocation(): { protocol: string; hostname: string; origin: string } {
+function currentLocation(): { protocol: string; hostname: string; port: string; origin: string } {
   if (typeof window === 'undefined') {
-    return { protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1' };
+    return { protocol: 'http:', hostname: '127.0.0.1', port: String(DEFAULT_API_PORT), origin: 'http://127.0.0.1' };
   }
-  const { protocol, hostname, origin } = window.location;
-  return { protocol, hostname, origin };
+  const { protocol, hostname, port, origin } = window.location;
+  return { protocol, hostname, port, origin };
+}
+
+/** Port the API is listening on. */
+function apiPort(): number {
+  const { port } = currentLocation();
+  const parsed = Number(port);
+  // A page served by the API knows the port from its own URL; the Steam CEF
+  // overlay has no port of its own and must use the default.
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return DEFAULT_API_PORT;
 }
 
 /**
@@ -51,7 +66,7 @@ function backendHost(): string {
 /** REST base, e.g. `http://127.0.0.1:8765` or `https://host` (same origin). */
 export function apiBase(): string {
   if (usesSameOrigin()) return currentLocation().origin;
-  return `http://${backendHost()}:${API_PORT}`;
+  return `http://${backendHost()}:${apiPort()}`;
 }
 
 /** WebSocket base, e.g. `ws://127.0.0.1:8765` or `wss://host`. */
@@ -60,7 +75,7 @@ export function wsBase(): string {
     const { origin } = currentLocation();
     return origin.replace(/^http/, 'ws');
   }
-  return `ws://${backendHost()}:${API_PORT}`;
+  return `ws://${backendHost()}:${apiPort()}`;
 }
 
 /** Resolve an API path (with or without a leading slash) to a full URL. */

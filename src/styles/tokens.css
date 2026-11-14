@@ -1,0 +1,118 @@
+/* ============================================================================
+   DeckForge design tokens.
+
+   Everything visual is expressed here once, then referenced by name. The old
+   UI hard-coded 110 distinct hex values across inline styles, which is why
+   nothing matched: two panels could both be "surface" and be four different
+   colours. These tokens are the single source of truth.
+
+   Palette rationale: the app is used in a dark room on a handheld, often next
+   to a game. Surfaces stay near-black and low-contrast so the UI recedes; a
+   single hot accent (#e94560, inherited from the original identity) marks the
+   one primary action per screen. Status colours are only for status.
+   ========================================================================= */
+
+:root {
+  /* ---- Colour: surfaces (dark, ordered by elevation) ------------------- */
+  --bg:            #0b0b12;
+  --surface-1:     #111119;
+  --surface-2:     #15151f;
+  --surface-3:     #1b1b27;
+  --surface-4:     #22222f;
+  --surface-inset: #08080d;
+
+  /* ---- Colour: borders ------------------------------------------------ */
+  --border:        #26263a;
+  --border-strong: #35354d;
+  --border-subtle: #1c1c2a;
+
+  /* ---- Colour: text --------------------------------------------------- */
+  --text:          #f2f3f7;
+  --text-muted:    #a8abc0;
+  --text-dim:      #7b7e93;
+  --text-faint:    #5b5e72;
+
+  /* ---- Colour: accent + status ---------------------------------------- */
+  --accent:        #e94560;
+  --accent-hover:  #f25c74;
+  --accent-press:  #d13350;
+  --accent-soft:   rgba(233, 69, 96, 0.14);
+  --accent-ring:   rgba(233, 69, 96, 0.45);
+
+  --success:       #34d399;
+  --success-soft:  rgba(52, 211, 153, 0.13);
+  --warning:       #fbbf24;
+  --warning-soft:  rgba(251, 191, 36, 0.13);
+  --danger:        #f87171;
+  --danger-soft:   rgba(248, 113, 113, 0.13);
+  --info:          #38bdf8;
+  --info-soft:     rgba(56, 189, 248, 0.13);
+
+  /* Guitar-blue, used only for the CRKD family accents. */
+  --guitar:        #7c5cff;
+  --guitar-soft:   rgba(124, 92, 255, 0.15);
+
+  /* ---- Spacing: 4px scale --------------------------------------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* ---- Radius ---------------------------------------------------------- */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* ---- Typography ------------------------------------------------------ */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code",
+               Consolas, monospace;
+
+  /* Fluid type: clamps scale between phone and desktop without media queries. */
+  --fs-display: clamp(24px, 5vw, 34px);
+  --fs-h1:      clamp(20px, 3.4vw, 26px);
+  --fs-h2:      clamp(16px, 2.2vw, 19px);
+  --fs-h3:      clamp(14px, 1.8vw, 16px);
+  --fs-body:    clamp(13px, 1.5vw, 14px);
+  --fs-sm:      12px;
+  --fs-xs:      11px;
+  --fs-2xs:     10px;
+
+  --lh-tight: 1.25;
+  --lh-body:  1.55;
+
+  /* ---- Elevation ------------------------------------------------------- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 14px 44px rgba(0, 0, 0, 0.6);
+  --shadow-accent: 0 8px 26px rgba(233, 69, 96, 0.28);
+
+  /* ---- Motion ---------------------------------------------------------- */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+
+  /* ---- Layout ---------------------------------------------------------- */
+  --tap: 44px;                  /* minimum touch target */
+  --content-max: 1180px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Respect the OS setting instead of animating regardless. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.001ms;
+    --dur: 0.001ms;
+  }
+}

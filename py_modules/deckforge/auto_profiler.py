@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from .device_catalog import ControllerFamily, find_family, mode_for_position
+
 logger = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -202,6 +204,10 @@ class Detection:
     fingerprint: Optional[Fingerprint] = None
     # True when the device looks like hardware Steam owns and we must not touch.
     reserved: bool = False
+    # Built-in knowledge for this device, when we recognise the family.
+    family_id: Optional[str] = None
+    family_name: Optional[str] = None
+    setup_notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -216,6 +222,9 @@ class Detection:
             "sdl_type": self.sdl_type,
             "steam_schema": self.steam_schema,
             "reserved": self.reserved,
+            "family_id": self.family_id,
+            "family_name": self.family_name,
+            "setup_notes": self.setup_notes,
             "fingerprint": self.fingerprint.to_dict() if self.fingerprint else None,
         }
 
@@ -311,7 +320,22 @@ def detect_device(device: Any) -> Detection:
     sdl_type = identity.get("sdl_type") if identity else None
     schema = identity.get("steam_schema", "generic") if identity else "generic"
 
+    family = find_family(vendor, product, name)
     kind, confidence, reason = classify(fp, name, sdl_type, vendor, product)
+
+    # A recognised family outranks a capability guess. KeyJam (mode 9) makes this
+    # guitar enumerate as a KEYBOARD, so the keyboard gate below would classify
+    # real hardware as "not a controller" and refuse to profile it. The family
+    # table knows what the device is; the fingerprint only knows how it looks
+    # right now, in whatever mode the dial happens to be on.
+    if family is not None:
+        kind = family.kind
+        confidence = max(confidence, 0.95)
+        reason = (
+            f"recognised as {family.display_name}"
+            + (f" (currently presenting as {fp.key_codes and 'keyboard' or 'gamepad'})"
+               if fp.key_codes else "")
+        )
 
     # Steam's own virtual pads (the Deck's built-in controls, Steam Input
     # virtual devices) must never be silently remapped.
@@ -335,6 +359,9 @@ def detect_device(device: Any) -> Detection:
         steam_schema=schema,
         fingerprint=fp,
         reserved=reserved,
+        family_id=family.family_id if family else None,
+        family_name=family.display_name if family else None,
+        setup_notes=list(family.setup_notes) if family else [],
     )
 
 

@@ -1,0 +1,425 @@
+/* ============================================================================
+   Landing page (web studio home).
+
+   Mobile-first: base rules are the phone layout. Desktop is layered at 900px.
+   ========================================================================= */
+
+/* ---- Hero --------------------------------------------------------------- */
+.df-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--sp-5);
+}
+
+.df-hero__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.df-hero__logo {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: var(--r-lg);
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, var(--accent) 0%, #4a1030 100%);
+  box-shadow: var(--shadow-accent);
+}
+
+.df-hero__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.df-hero__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.df-hero__status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+@media (min-width: 900px) {
+  .df-hero {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-6);
+  }
+  .df-hero__meta {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-5);
+  }
+  .df-hero__logo { width: 60px; height: 60px; }
+}
+
+.df-launch {
+  min-height: 52px;
+  font-size: var(--fs-body);
+  padding: 0 var(--sp-5);
+  width: 100%;
+}
+
+@media (min-width: 620px) {
+  .df-launch { width: auto; }
+}
+
+/* ---- Stat strip --------------------------------------------------------- */
+.df-stat {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.df-stat__icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.df-stat__label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.df-stat__value {
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* ---- Device banner ------------------------------------------------------ */
+.df-device {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  margin-bottom: var(--sp-5);
+  flex-wrap: wrap;
+}
+
+.df-device--found { border-color: var(--success); background: var(--success-soft); }
+.df-device--none  { border-color: var(--border); }
+
+.df-device__body {
+  flex: 1;
+  min-width: 160px;
+}
+
+/* ---- Section heading ---------------------------------------------------- */
+.df-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+
+/* ---- Profile card ------------------------------------------------------- */
+.df-profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+  transition: border-color var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
+}
+
+.df-profile:hover {
+  border-color: var(--border-strong);
+}
+
+.df-profile__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.df-profile__title {
+  font-size: var(--fs-h3);
+  font-weight: 750;
+  color: var(--text);
+  line-height: var(--lh-tight);
+}
+
+.df-profile__notes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+}
+
+.df-profile__note {
+  position: relative;
+  padding-left: var(--sp-4);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.df-profile__note::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.df-profile__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-1);
+}
+
+/* ---- Mode dial table ---------------------------------------------------- */
+.df-modes {
+  display: grid;
+  gap: 1px;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.df-mode {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: var(--sp-3);
+  align-items: start;
+  padding: var(--sp-3);
+  background: var(--surface-2);
+}
+
+.df-mode__pos {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--surface-4);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+.df-mode--key .df-mode__pos { background: var(--warning-soft); color: var(--warning); }
+.df-mode--festival .df-mode__pos { background: var(--accent-soft); color: var(--accent); }
+
+@media (min-width: 620px) {
+  .df-mode { grid-template-columns: 34px 190px 1fr; }
+}
+
+/* ---- Compatibility matrix ----------------------------------------------
+   Wide tables must scroll horizontally on a phone, and say so: a silently
+   clipped table looks like missing data rather than off-screen data. */
+.df-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--r-sm);
+  /* Faint edge shadow hints that there is more to the right. */
+  background:
+    linear-gradient(to right, var(--surface-2) 30%, rgba(21, 21, 31, 0)) left center / 24px 100% no-repeat,
+    linear-gradient(to left, var(--surface-2) 30%, rgba(21, 21, 31, 0)) right center / 24px 100% no-repeat;
+}
+
+.df-table-scroll table {
+  min-width: 560px;
+}
+
+.df-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-xs);
+}
+
+.df-matrix th,
+.df-matrix td {
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+.df-matrix th {
+  color: var(--text-dim);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.df-matrix td { color: var(--text-muted); }
+.df-matrix tr:last-child td { border-bottom: none; }
+
+.df-yes { color: var(--success); font-weight: 700; }
+.df-no  { color: var(--text-faint); }
+.df-partial { color: var(--warning); font-weight: 700; }
+
+/* ---- Code block --------------------------------------------------------- */
+.df-code {
+  display: block;
+  position: relative;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3);
+  padding-right: 64px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--info);
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.6;
+}
+
+.df-code__copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  background: var(--surface-4);
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.df-code__copy:hover { color: var(--text); }
+
+/* ---- Steps -------------------------------------------------------------- */
+.df-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  counter-reset: step;
+  padding: 0;
+  margin: 0;
+}
+
+.df-step {
+  position: relative;
+  padding-left: var(--sp-8);
+  counter-increment: step;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: var(--lh-body);
+}
+
+.df-step::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-4);
+  color: var(--text);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+}
+
+.df-step strong { color: var(--text); font-weight: 700; }
+
+/* ---- Notice ------------------------------------------------------------- */
+.df-notice {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.df-notice--success { border-color: var(--success); background: var(--success-soft); color: #c8f7e3; }
+.df-notice--warning { border-color: var(--warning); background: var(--warning-soft); color: #fde9b8; }
+.df-notice--danger  { border-color: var(--danger);  background: var(--danger-soft);  color: #ffd5d5; }
+.df-notice--info    { border-color: var(--info);    background: var(--info-soft);    color: #cdeeff; }
+
+/* ---- Skeleton ----------------------------------------------------------- */
+.df-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: df-shimmer 1.4s ease infinite;
+  border-radius: var(--r-md);
+  height: 148px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df-skeleton { animation: none; }
+}
+
+@keyframes df-shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ---- Empty state -------------------------------------------------------- */
+.df-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
